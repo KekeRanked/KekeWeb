@@ -6,7 +6,8 @@
         },
         "backend": {
             "root": "backend",
-            "framework": "vite"
+            "framework": "vite",
+            "outputDirectory": "public/build"
         }
     },
     "rewrites": [
