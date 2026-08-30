@@ -4,13 +4,13 @@ const steps = [
   { number: "01", title: "PREPARA TU CUENTA", description: "Entra con tu cuenta de Minecraft y vincula Discord para que tu perfil, historial y sanciones estén asociados correctamente." },
   { number: "02", title: "ELIGE UNA MODALIDAD", description: "Desde el lobby competitivo selecciona el formato disponible en el que quieras buscar partida." },
   { number: "03", title: "ENTRA AL MATCHMAKING", description: "El sistema busca jugadores con un nivel competitivo cercano y prepara automáticamente la arena." },
-  { number: "04", title: "JUEGA Y PROGRESA", description: "Al terminar, el resultado queda guardado y tu MMR se actualiza según el desempeño de ambos lados." },
+  { number: "04", title: "JUEGA Y PROGRESA", description: "Al terminar, el resultado queda guardado y tu ELO se actualiza según el desempeño de ambos lados." },
 ];
 
 const modes = [
-  { code: "SOLO", size: "1V1", title: "DUELO INDIVIDUAL", description: "Una prueba directa de mecánicas, adaptación y consistencia. Tu resultado depende únicamente de ti." },
-  { code: "DUO", size: "2V2", title: "PARTIDA EN PAREJA", description: "Coordinación rápida, presión compartida y decisiones en conjunto con un compañero." },
-  { code: "SQUAD", size: "4V4", title: "EQUIPO COMPLETO", description: "Estrategia, comunicación y control de la partida entre cuatro integrantes por lado." },
+  { code: "CTW", size: "5V5", title: "CAPTURE THE WOOL", description: "La cola principal de KEKE: diez jugadores se organizan en dos equipos de cinco y compiten por capturar la lana del rival en mapas PGM." },
+  { code: "RANKED", size: "5V5", title: "RANKED 5V5", description: "La experiencia competitiva de cinco contra cinco con matchmaking, selección previa y progreso de ELO separado." },
+  { code: "PRÓXIMA", size: "CONQUEST", title: "CONQUEST", description: "La próxima cola que llegará a KEKE. Será anunciada oficialmente cuando esté lista para competir." },
 ];
 
 const divisions = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND", "ASCENDANT", "IMMORTAL", "RADIANT"];
@@ -31,9 +31,9 @@ export default function RankedsPage() {
 
       <section className="rankeds-section">
         <div className="rankeds-facts" aria-label="Información general de las rankeds">
-          <div><small>VERSIÓN</small><strong>JAVA 1.21+</strong><span>Acceso desde el lobby</span></div>
-          <div><small>FORMATOS</small><strong>1V1 · 2V2 · 4V4</strong><span>Según disponibilidad</span></div>
-          <div><small>PROGRESIÓN</small><strong>MMR DINÁMICO</strong><span>Cada resultado cuenta</span></div>
+          <div><small>VERSIÓN</small><strong>JAVA 1.7X — 1.8</strong><span>Acceso desde el lobby</span></div>
+          <div><small>COLA PRINCIPAL</small><strong>5V5 CTW</strong><span>Diez jugadores · PGM</span></div>
+          <div><small>PROGRESIÓN</small><strong>ELO DINÁMICO</strong><span>Cada resultado cuenta</span></div>
           <div><small>REGISTRO</small><strong>HISTORIAL WEB</strong><span>Partidas y estadísticas</span></div>
         </div>
 
@@ -69,7 +69,7 @@ export default function RankedsPage() {
         <section className="mmr-explainer">
           <div className="mmr-copy">
             <p className="eyebrow"><span>PROGRESIÓN</span> TU NIVEL COMPETITIVO</p>
-            <h2>EL MMR DEFINE<br />TU POSICIÓN.</h2>
+            <h2>EL ELO DEFINE<br />TU POSICIÓN.</h2>
             <p>Las victorias aumentan tu puntuación y las derrotas pueden reducirla. El ajuste considera la diferencia de nivel entre los participantes para evitar que todas las partidas valgan lo mismo.</p>
             <div className="mmr-notes">
               <span>Tu rango se actualiza después de cada resultado.</span>
@@ -78,10 +78,10 @@ export default function RankedsPage() {
             </div>
           </div>
           <div className="division-ladder" aria-label="Ejemplos de divisiones competitivas">
-            <div className="ladder-head"><small>ESCALERA COMPETITIVA</small><span>MENOR MMR</span><span>MAYOR MMR</span></div>
+            <div className="ladder-head"><small>ESCALERA COMPETITIVA</small><span>MENOR ELO</span><span>MAYOR ELO</span></div>
             {divisions.map((division, index) => (
               <div className={division === "DIAMOND" ? "division-row is-current" : "division-row"} key={division}>
-                <span>{String(index + 1).padStart(2, "0")}</span><strong>{division}</strong>{division === "DIAMOND" && <small>RANGO DE EJEMPLO</small>}
+                <span>{String(index + 1).padStart(2, "0")}</span><strong>{division}</strong>
               </div>
             ))}
           </div>

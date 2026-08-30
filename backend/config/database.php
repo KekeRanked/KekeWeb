@@ -68,10 +68,10 @@ return [
         // Esta cuenta de MySQL debe tener solamente permiso SELECT.
         'minecraft_stats' => [
             'driver' => 'mysql',
-            'host' => env('MINECRAFT_STATS_DB_HOST', '127.0.0.1'),
+            'host' => env('MINECRAFT_STATS_DB_HOST', ''),
             'port' => env('MINECRAFT_STATS_DB_PORT', '3306'),
-            'database' => env('MINECRAFT_STATS_DB_DATABASE', 'bot_db1'),
-            'username' => env('MINECRAFT_STATS_DB_USERNAME', 'keke_web_readonly'),
+            'database' => env('MINECRAFT_STATS_DB_DATABASE', ''),
+            'username' => env('MINECRAFT_STATS_DB_USERNAME', ''),
             'password' => env('MINECRAFT_STATS_DB_PASSWORD', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
@@ -84,11 +84,13 @@ return [
         // Puede apuntar al mismo servidor MySQL, pero es una conexión separada.
         'minecraft_matches' => [
             'driver' => 'mysql',
-            'host' => env('MINECRAFT_MATCHES_DB_HOST', env('MINECRAFT_STATS_DB_HOST', '127.0.0.1')),
-            'port' => env('MINECRAFT_MATCHES_DB_PORT', env('MINECRAFT_STATS_DB_PORT', '3306')),
-            'database' => env('MINECRAFT_MATCHES_DB_DATABASE', 'bot_db2'),
-            'username' => env('MINECRAFT_MATCHES_DB_USERNAME', env('MINECRAFT_STATS_DB_USERNAME', 'keke_web_readonly')),
-            'password' => env('MINECRAFT_MATCHES_DB_PASSWORD', env('MINECRAFT_STATS_DB_PASSWORD', '')),
+            // Una variable definida pero vacía no debe anular la configuración
+            // de estadísticas: ambos registros normalmente viven en la misma DB.
+            'host' => env('MINECRAFT_MATCHES_DB_HOST') ?: env('MINECRAFT_STATS_DB_HOST', '127.0.0.1'),
+            'port' => env('MINECRAFT_MATCHES_DB_PORT') ?: env('MINECRAFT_STATS_DB_PORT', '3306'),
+            'database' => env('MINECRAFT_MATCHES_DB_DATABASE') ?: env('MINECRAFT_STATS_DB_DATABASE', 'bot_db2'),
+            'username' => env('MINECRAFT_MATCHES_DB_USERNAME') ?: env('MINECRAFT_STATS_DB_USERNAME', 'keke_web_readonly'),
+            'password' => env('MINECRAFT_MATCHES_DB_PASSWORD') ?: env('MINECRAFT_STATS_DB_PASSWORD', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',

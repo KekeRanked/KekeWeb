@@ -1,23 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "./components/site-chrome";
+import { nextRankThreshold, rankForElo, rankProgress } from "./lib/ranks";
 
-const leaderboard = [
-  { position: 1, name: "KairoPvP", rank: "RADIANT", rating: 2634, record: "47–8" },
-  { position: 2, name: "NexuZ", rank: "IMMORTAL", rating: 2351, record: "41–11" },
-  { position: 3, name: "Asteria", rank: "IMMORTAL", rating: 2196, record: "38–9" },
-  { position: 4, name: "FrostByte", rank: "ASCENDANT", rating: 2077, record: "35–14" },
-];
-
-const liveMatches = [
-  { map: "Citadel", mode: "2v2", score: "3 — 2", time: "08:42" },
-  { map: "Foundry", mode: "1v1", score: "1 — 1", time: "04:16" },
-  { map: "Overgrown", mode: "4v4", score: "2 — 0", time: "12:03" },
-];
+type RankedPlayer = { rank_position: number; minecraft_uuid: string; minecraft_username: string; elo: number; wins: number; losses: number; is_in_placement: number };
+type LeaderboardResponse = { data: RankedPlayer[] };
+type LiveMatch = { match_id: string; queue_key: string; map_name: string | null; phase: string; started_at: string | null };
+type MatchServer = { server_key: string; name: string; status: string; player_count: number; matches: LiveMatch[]; last_seen_at: string | null };
+type RecentMatch = { match_id: string; map_name: string; match_type: string; winner_team: string; end_time: string };
+function division(elo: number) { return rankForElo(elo); }
+function head(uuid: string, size: number) { return `https://mc-heads.net/avatar/${uuid}/${size}.png`; }
+function elapsed(startedAt: string | null, now = Date.now()) { if (!startedAt) return "—"; const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000)); return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
 
 export default function Home() {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false), [leaderboard, setLeaderboard] = useState<RankedPlayer[]>([]), [servers, setServers] = useState<MatchServer[]>([]), [latest, setLatest] = useState<RecentMatch | null>(null), [now, setNow] = useState(() => Date.now()), [dataError, setDataError] = useState(false);
+  useEffect(() => { const load = async () => { try { const [leaderboardResponse, serversResponse, matchesResponse] = await Promise.all([fetch("/api/ranked/leaderboards?per_page=4", { cache: "no-store" }), fetch("/api/ranked/servers", { cache: "no-store" }), fetch("/api/ranked/matches?per_page=1", { cache: "no-store" })]); if (!leaderboardResponse.ok || !serversResponse.ok || !matchesResponse.ok) throw new Error("API"); const leaderboardPayload = await leaderboardResponse.json() as LeaderboardResponse, serversPayload = await serversResponse.json() as { data: MatchServer[] }, matchesPayload = await matchesResponse.json() as { data: RecentMatch[] }; setLeaderboard(leaderboardPayload.data ?? []); setServers(serversPayload.data ?? []); setLatest(matchesPayload.data?.[0] ?? null); setDataError(false); } catch { setDataError(true); } }; void load(); const refresh = window.setInterval(() => void load(), 15000), clock = window.setInterval(() => setNow(Date.now()), 1000); return () => { window.clearInterval(refresh); window.clearInterval(clock); }; }, []);
+  const onlineServers = servers.filter((server) => server.status !== "offline"), onlinePlayers = servers.reduce((total, server) => total + Number(server.player_count ?? 0), 0), topPlayer = leaderboard[0], liveMatches = servers.flatMap((server) => (server.matches ?? []).slice(0, 1).map((match) => ({ ...match, server: server.name }))).slice(0, 3), nextThreshold = topPlayer ? nextRankThreshold(Number(topPlayer.elo)) : null, progress = topPlayer ? rankProgress(Number(topPlayer.elo)) : 0;
 
   async function copyServerAddress() {
     await navigator.clipboard.writeText("keke.live");
@@ -54,9 +53,9 @@ export default function Home() {
           </div>
 
           <div className="server-metrics" aria-label="Estado del servidor">
-            <div><strong>1,284</strong><span>Jugadores online</span></div>
-            <div><strong>24 ms</strong><span>Latencia promedio</span></div>
-            <div><strong>99.9%</strong><span>Disponibilidad</span></div>
+            <div><strong>{onlinePlayers.toLocaleString("es-PE")}</strong><span>Jugadores online</span></div>
+            <div><strong>{onlineServers.length} / {servers.length || 3}</strong><span>Servidores en línea</span></div>
+            <div><strong>{dataError ? "—" : "EN VIVO"}</strong><span>Estado de la red</span></div>
           </div>
         </div>
 
@@ -66,7 +65,7 @@ export default function Home() {
           <div className="rank-orbit orbit-two" />
           <div className="rank-card">
             <div className="rank-card-top">
-              <span>RANGO ACTUAL</span>
+              <span>MEJOR ELO ACTUAL</span>
               <span className="live-label">EN VIVO</span>
             </div>
             <div className="rank-emblem">
@@ -75,17 +74,17 @@ export default function Home() {
               <span className="emblem-corner corner-three" />
               <span className="emblem-corner corner-four" />
             </div>
-            <div className="rank-name">ASCENDANT</div>
+            <div className="rank-name">{topPlayer ? division(Number(topPlayer.elo)) : "SIN DATOS"}</div>
             <div className="rating-row">
-              <span>1,950 ELO</span>
-              <span>+28</span>
+              <span>{topPlayer ? `${Number(topPlayer.elo).toLocaleString("es-PE")} ELO` : "—"}</span>
+              <span>{topPlayer ? topPlayer.minecraft_username : "—"}</span>
             </div>
-            <div className="progress-track"><span /></div>
-            <div className="progress-copy"><span>200 puntos para IMMORTAL</span><span>78%</span></div>
+            <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
+            <div className="progress-copy"><span>{topPlayer ? nextThreshold === null ? "Rango máximo alcanzado" : `${Math.max(0, nextThreshold - Number(topPlayer.elo))} puntos para ${division(nextThreshold)}` : "Sin clasificación disponible"}</span><span>{topPlayer ? `${Math.round(progress)}%` : "—"}</span></div>
           </div>
 
-          <div className="floating-tag tag-win"><small>ÚLTIMA PARTIDA</small><strong>VICTORIA +28</strong></div>
-          <div className="floating-tag tag-streak"><small>RACHA ACTUAL</small><strong>5 PARTIDAS</strong></div>
+          <div className="floating-tag tag-win"><small>ÚLTIMA PARTIDA</small><strong>{latest ? `${latest.map_name} · ${latest.winner_team.toUpperCase()} GANA` : "SIN REGISTRO"}</strong></div>
+          <div className="floating-tag tag-streak"><small>RED EN VIVO</small><strong>{onlineServers.length} SERVIDORES</strong></div>
         </div>
       </section>
 
@@ -95,14 +94,14 @@ export default function Home() {
           PARTIDAS EN CURSO
         </div>
         <div className="match-ticker">
-          {liveMatches.map((match) => (
-            <div className="ticker-match" key={match.map}>
-              <span>{match.mode}</span>
-              <strong>{match.map}</strong>
-              <b>{match.score}</b>
-              <time>{match.time}</time>
+          {liveMatches.length ? liveMatches.map((match) => (
+            <div className="ticker-match" key={match.match_id}>
+              <span>{match.queue_key.replaceAll("_", " ").toUpperCase()}</span>
+              <strong>{match.map_name ?? "SIN MAPA"}</strong>
+              <b>{match.server}</b>
+              <time>{elapsed(match.started_at, now)}</time>
             </div>
-          ))}
+          )) : <div className="ticker-empty">NO HAY PARTIDAS EN CURSO</div>}
         </div>
         <a href="/play">Ver todas</a>
       </section>
@@ -121,16 +120,15 @@ export default function Home() {
             <span>#</span><span>Jugador</span><span>División</span><span>Rating</span><span>V / D</span>
           </div>
           {leaderboard.map((player) => (
-            <article className="leaderboard-row" key={player.position}>
-              <span className="position">{String(player.position).padStart(2, "0")}</span>
+            <a className="leaderboard-row" href={`/players/${encodeURIComponent(player.minecraft_username)}`} key={player.minecraft_uuid}>
+              <span className="position">{String(player.rank_position).padStart(2, "0")}</span>
               <div className="player-identity">
-                <span className={`player-avatar avatar-${player.position}`}>{player.name.slice(0, 1)}</span>
-                <strong>{player.name}</strong>
+                <img className="player-avatar" src={head(player.minecraft_uuid, 38)} alt="" /><strong>{player.minecraft_username}</strong>
               </div>
-              <span className="rank-pill">{player.rank}</span>
-              <strong className="rating">{player.rating.toLocaleString("es-PE")}</strong>
-              <span className="record">{player.record}</span>
-            </article>
+              <span className="rank-pill">{division(Number(player.elo))}</span>
+              <strong className="rating">{Number(player.elo).toLocaleString("es-PE")}</strong>
+              <span className="record">{player.wins}–{player.losses}</span>
+            </a>
           ))}
           <a className="table-action" href="/leaderboards">EXPLORAR CLASIFICACIÓN COMPLETA</a>
         </div>

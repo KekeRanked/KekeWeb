@@ -1,82 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SiteFooter, SiteHeader } from "../components/site-chrome";
 
-const matchServers = [
-  {
-    id: "ranked-01", server: "RANKED 01", status: "EN PARTIDA", mode: "2V2", map: "Citadel", elapsed: "08:42",
-    teamA: { name: "EQUIPO ÁMBAR", players: ["KairoPvP", "NexuZ"], score: 3 },
-    teamB: { name: "EQUIPO ACERO", players: ["Asteria", "FrostByte"], score: 2 },
-    observers: ["Valken", "MiloPvP"],
-  },
-  {
-    id: "ranked-02", server: "RANKED 02", status: "EN PARTIDA", mode: "1V1", map: "Foundry", elapsed: "04:16",
-    teamA: { name: "JUGADOR A", players: ["Lunaris"], score: 1 },
-    teamB: { name: "JUGADOR B", players: ["Riven"], score: 1 },
-    observers: ["KekeAdmin"],
-  },
-  {
-    id: "ranked-03", server: "RANKED 03", status: "DISPONIBLE", mode: "—", map: "Sin arena", elapsed: "00:00",
-    teamA: { name: "EQUIPO A", players: [], score: 0 },
-    teamB: { name: "EQUIPO B", players: [], score: 0 },
-    observers: [],
-  },
-];
+type Participant = { minecraft_uuid: string | null; minecraft_username: string; team: string | null; role: "player" | "observer" };
+type OnlinePlayer = { minecraft_uuid: string | null; minecraft_username: string };
+type LiveMatch = { match_id: string; queue_key: string; rating_key: string | null; map_name: string | null; phase: string; started_at: string | null; players: Participant[]; observers: Participant[] };
+type MatchServer = { server_key: string; name: string; status: string; player_count: number; players: OnlinePlayer[]; last_seen_at: string | null; matches: LiveMatch[] };
+type HistoryMatch = { match_id: string; match_type: string; map_name: string; winner_team: string; duration_seconds: number; start_time: string; end_time: string; server_key: string | null; teams: { team: string; won: boolean; players: { minecraft_uuid: string; minecraft_username: string }[] }[] };
 
-const matchHistory = [
-  { id: "#BETA-01842", server: "RANKED 03", mode: "4V4", map: "Overgrown", teamA: "Onyx", score: "3 — 1", teamB: "North", duration: "14:28", ended: "HACE 6 MIN" },
-  { id: "#BETA-01841", server: "RANKED 01", mode: "1V1", map: "Citadel", teamA: "Sylver", score: "2 — 0", teamB: "Kael", duration: "06:12", ended: "HACE 14 MIN" },
-  { id: "#BETA-01840", server: "RANKED 02", mode: "2V2", map: "Foundry", teamA: "Nova / Milo", score: "1 — 3", teamB: "Luna / Riven", duration: "11:47", ended: "HACE 22 MIN" },
-  { id: "#BETA-01839", server: "RANKED 03", mode: "1V1", map: "Overgrown", teamA: "Valken", score: "2 — 1", teamB: "FrostByte", duration: "08:55", ended: "HACE 31 MIN" },
-  { id: "#BETA-01838", server: "RANKED 01", mode: "4V4", map: "Citadel", teamA: "Astra", score: "0 — 3", teamB: "Obsidian", duration: "15:03", ended: "HACE 45 MIN" },
-];
+const API = "/api/ranked";
+function headUrl(uuid: string | null, size = 40) { return uuid ? `https://mc-heads.net/avatar/${uuid}/${size}.png` : null; }
+function statusLabel(status: string) { return status === "offline" ? "SIN CONEXIÓN" : "EN LÍNEA"; }
+function duration(seconds: number) { const minutes = Math.floor(Math.max(0, seconds) / 60); return `${String(minutes).padStart(2, "0")}:${String(Math.max(0, seconds) % 60).padStart(2, "0")}`; }
+function elapsed(startedAt: string | null, now: number) { return startedAt ? duration(Math.floor(Math.max(0, now - new Date(startedAt).getTime()) / 1000)) : "00:00"; }
+function relativeDate(value: string) { const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000)); if (minutes < 1) return "AHORA"; if (minutes < 60) return `HACE ${minutes} MIN`; const hours = Math.floor(minutes / 60); return hours < 24 ? `HACE ${hours} H` : `HACE ${Math.floor(hours / 24)} D`; }
+function teamPlayers(match: LiveMatch, team: string) { return match.players.filter((player) => (player.team ?? "").toLowerCase() === team); }
 
 export default function PlayPage() {
-  const [selectedServerId, setSelectedServerId] = useState(matchServers[0].id);
-  const selectedServer = matchServers.find((server) => server.id === selectedServerId) ?? matchServers[0];
-  const hasMatch = selectedServer.status === "EN PARTIDA";
-
-  return (
-    <main>
-      <SiteHeader active="play" />
-      <section className="portal-hero play-hero">
-        <div className="portal-hero-grid" aria-hidden="true" />
-        <div><p className="eyebrow"><span>PARTIDAS EN TIEMPO REAL</span> TRES SERVIDORES RANKED</p><h1>MIRA QUIÉN JUEGA.<br /><em>Y DÓNDE.</em></h1></div>
-        <p>Estado de cada servidor, jugadores dentro de la arena, observadores conectados e historial reciente.</p>
-      </section>
-
-      <section className="play-section">
-        <div className="match-server-selector">
-          {matchServers.map((server) => (
-            <button className={selectedServer.id === server.id ? "match-server-card is-selected" : "match-server-card"} key={server.id} type="button" onClick={() => setSelectedServerId(server.id)}>
-              <div><span className={server.status === "EN PARTIDA" ? "server-status is-live" : "server-status"}>{server.status}</span><small>{server.server}</small></div>
-              <strong>{server.mode}</strong><p>{server.map}</p><time>{server.elapsed}</time>
-            </button>
-          ))}
-        </div>
-
-        <section className="current-match" aria-live="polite">
-          <div className="current-match-head"><div><span className={hasMatch ? "live-indicator" : "ready-indicator"} /> <strong>{selectedServer.server}</strong></div><small>{hasMatch ? `${selectedServer.map} · ${selectedServer.mode}` : "ESPERANDO UNA NUEVA PARTIDA"}</small><time>{selectedServer.elapsed}</time></div>
-          {hasMatch ? (
-            <div className="match-stage">
-              <div className="match-team team-a"><div className="team-label"><span>A</span><small>{selectedServer.teamA.name}</small></div>{selectedServer.teamA.players.map((player) => <div className="match-player" key={player}><span>{player.slice(0, 1)}</span><strong>{player}</strong><small>JUGANDO</small></div>)}</div>
-              <div className="match-score"><small>MARCADOR ACTUAL</small><strong><span>{selectedServer.teamA.score}</span><i>—</i><span>{selectedServer.teamB.score}</span></strong><p>{selectedServer.elapsed}</p></div>
-              <div className="match-team team-b"><div className="team-label"><span>B</span><small>{selectedServer.teamB.name}</small></div>{selectedServer.teamB.players.map((player) => <div className="match-player" key={player}><span>{player.slice(0, 1)}</span><strong>{player}</strong><small>JUGANDO</small></div>)}</div>
-            </div>
-          ) : <div className="empty-match"><strong>SERVIDOR DISPONIBLE</strong><p>Este servidor está preparado para recibir la siguiente partida del matchmaking.</p></div>}
-
-          <div className="observer-strip"><div><small>OBSERVADORES</small><strong>{selectedServer.observers.length} EN OBS</strong></div>{selectedServer.observers.length > 0 ? <div className="observer-list">{selectedServer.observers.map((observer) => <span key={observer}>{observer}</span>)}</div> : <p>NO HAY OBSERVADORES CONECTADOS</p>}</div>
-        </section>
-
-        <div className="history-heading"><div><p className="eyebrow"><span>REGISTRO GLOBAL</span> LOS TRES SERVIDORES</p><h2>HISTORIAL DE PARTIDAS</h2></div><p>Cada resultado indica en qué servidor se disputó para poder revisar toda la actividad de la red.</p></div>
-        <div className="match-history" role="region" aria-label="Historial de partidas del servidor" tabIndex={0}>
-          <div className="match-history-head"><span>PARTIDA</span><span>SERVIDOR</span><span>MODO</span><span>MAPA</span><span>EQUIPO A</span><span>RESULTADO</span><span>EQUIPO B</span><span>DURACIÓN</span><span>FINALIZÓ</span></div>
-          {matchHistory.map((match) => <article className="match-history-row" key={match.id}><strong>{match.id}</strong><span>{match.server}</span><span className="history-mode">{match.mode}</span><span>{match.map}</span><span>{match.teamA}</span><strong className="history-score">{match.score}</strong><span>{match.teamB}</span><time>{match.duration}</time><small>{match.ended}</small></article>)}
-        </div>
-        <button className="history-load" type="button">CARGAR MÁS PARTIDAS</button>
-      </section>
-      <SiteFooter />
-    </main>
-  );
+  const [servers, setServers] = useState<MatchServer[]>([]), [history, setHistory] = useState<HistoryMatch[]>([]), [selectedServerId, setSelectedServerId] = useState(""), [historyPage, setHistoryPage] = useState(1), [hasMoreHistory, setHasMoreHistory] = useState(false), [loading, setLoading] = useState(true), [historyLoading, setHistoryLoading] = useState(false), [liveError, setLiveError] = useState(""), [historyError, setHistoryError] = useState(""), [now, setNow] = useState(() => Date.now());
+  const loadLive = useCallback(async () => { try { const response = await fetch(`${API}/servers`, { cache: "no-store" }); if (!response.ok) throw new Error("No se pudo consultar el estado de los servidores."); const payload = await response.json() as { data: MatchServer[] }; setServers(payload.data ?? []); setSelectedServerId((current) => current && payload.data.some((server) => server.server_key === current) ? current : payload.data[0]?.server_key ?? ""); setLiveError(""); } catch (loadError) { setLiveError(loadError instanceof Error ? loadError.message : "No se pudo consultar PLAY."); } finally { setLoading(false); } }, []);
+  const loadHistory = useCallback(async (page: number, append = false) => { setHistoryLoading(true); try { const response = await fetch(`${API}/matches?per_page=20&page=${page}`, { cache: "no-store" }); if (!response.ok) throw new Error("El historial global todavía no está conectado a la base de partidas."); const payload = await response.json() as { data: HistoryMatch[]; current_page: number; last_page: number }; setHistory((current) => append ? [...current, ...(payload.data ?? [])] : (payload.data ?? [])); setHistoryPage(payload.current_page ?? page); setHasMoreHistory((payload.current_page ?? page) < (payload.last_page ?? page)); setHistoryError(""); } catch (loadError) { setHistoryError(loadError instanceof Error ? loadError.message : "No se pudo consultar el historial global."); } finally { setHistoryLoading(false); } }, []);
+  useEffect(() => { void loadLive(); void loadHistory(1); const refresh = window.setInterval(() => void loadLive(), 10000), clock = window.setInterval(() => setNow(Date.now()), 1000); return () => { window.clearInterval(refresh); window.clearInterval(clock); }; }, [loadLive, loadHistory]);
+  const selectedServer = servers.find((server) => server.server_key === selectedServerId) ?? servers[0], selectedMatch = selectedServer?.matches?.[0], bluePlayers = useMemo(() => selectedMatch ? teamPlayers(selectedMatch, "blue") : [], [selectedMatch]), redPlayers = useMemo(() => selectedMatch ? teamPlayers(selectedMatch, "red") : [], [selectedMatch]), observers = selectedMatch?.observers ?? [], live = ["playing", "preparing", "ending"].includes(selectedServer?.status ?? "");
+  const loadingServers: MatchServer[] = ["ranked-1", "ranked-2", "ranked-3"].map((server_key) => ({ server_key, name: server_key.toUpperCase(), status: "offline", player_count: 0, players: [], last_seen_at: null, matches: [] }));
+  return <main><SiteHeader active="play" /><section className="portal-hero play-hero"><div className="portal-hero-grid" aria-hidden="true" /><div><p className="eyebrow"><span>PARTIDAS EN TIEMPO REAL</span> TRES SERVIDORES RANKED</p><h1>MIRA QUIÉN JUEGA.<br /><em>Y DÓNDE.</em></h1></div><p>Estado de cada servidor, jugadores dentro de la arena, observadores conectados e historial reciente.</p></section>
+    <section className="play-section">{liveError && <p className="api-notice" role="status">{liveError}</p>}<div className="match-server-selector">{(loading ? loadingServers : servers).map((server) => { const match = server.matches?.[0]; return <button className={selectedServer?.server_key === server.server_key ? "match-server-card is-selected" : "match-server-card"} key={server.server_key} type="button" onClick={() => setSelectedServerId(server.server_key)}><div><span className={server.status !== "offline" ? "server-status is-live" : "server-status"}>{statusLabel(server.status)}</span><small>{server.name}</small></div><strong>{match?.queue_key?.replaceAll("_", " ").toUpperCase() ?? "—"}</strong><p>{match?.map_name ?? (server.status === "offline" ? "Sin conexión" : "Esperando una partida")}</p><time>{match ? elapsed(match.started_at, now) : `${server.player_count} ONLINE`}</time></button>; })}</div>
+      <section className="current-match" aria-live="polite"><div className="current-match-head"><div><span className={live ? "live-indicator" : "ready-indicator"} /> <strong>{selectedServer?.name ?? "SERVIDOR"}</strong></div><small>{selectedMatch ? `${selectedMatch.map_name ?? "SIN MAPA"} · ${selectedMatch.queue_key}` : statusLabel(selectedServer?.status ?? "offline")}</small><time>{selectedMatch ? elapsed(selectedMatch.started_at, now) : "—"}</time></div>{selectedMatch ? <div className="match-stage"><div className="match-team team-a"><div className="team-label"><span>A</span><small>EQUIPO AZUL</small></div>{bluePlayers.length ? bluePlayers.map((player) => <PlayerRow key={player.minecraft_uuid ?? player.minecraft_username} player={player} />) : <p className="empty-team">SIN JUGADORES REPORTADOS</p>}</div><div className="match-score"><small>MARCADOR ACTUAL</small><strong><span>—</span><i>—</i><span>—</span></strong><p>{selectedMatch.phase.toUpperCase()}</p></div><div className="match-team team-b"><div className="team-label"><span>B</span><small>EQUIPO ROJO</small></div>{redPlayers.length ? redPlayers.map((player) => <PlayerRow key={player.minecraft_uuid ?? player.minecraft_username} player={player} />) : <p className="empty-team">SIN JUGADORES REPORTADOS</p>}</div></div> : <AvailableServer server={selectedServer} /> }<div className="observer-strip"><div><small>OBSERVADORES</small><strong>{observers.length} EN OBS</strong></div>{observers.length > 0 ? <div className="observer-list">{observers.map((observer) => <span key={observer.minecraft_uuid ?? observer.minecraft_username}>{observer.minecraft_username}</span>)}</div> : <p>NO HAY OBSERVADORES CONECTADOS</p>}</div></section>
+      <div className="history-heading"><div><p className="eyebrow"><span>REGISTRO GLOBAL</span> RANKED 01 · RANKED 02 · RANKED 03</p><h2>HISTORIAL DE PARTIDAS</h2></div><p>Un único registro cronológico reúne las partidas finalizadas en cualquiera de los tres servidores e identifica dónde se disputó cada una.</p></div>{historyError && <p className="api-notice history-notice" role="status">{historyError}</p>}<div className="match-history" role="region" aria-label="Historial global de partidas" tabIndex={0}><div className="match-history-head"><span>PARTIDA</span><span>SERVIDOR</span><span>MODO</span><span>MAPA</span><span>EQUIPO A</span><span>RESULTADO</span><span>EQUIPO B</span><span>DURACIÓN</span><span>FINALIZÓ</span></div>{history.length ? history.map((match) => <HistoryRow key={match.match_id} match={match} />) : <p className="history-empty">AÚN NO HAY PARTIDAS REGISTRADAS EN LA RED</p>}</div>{hasMoreHistory && <button className="history-load" type="button" disabled={historyLoading} onClick={() => void loadHistory(historyPage + 1, true)}>{historyLoading ? "CARGANDO…" : "CARGAR MÁS PARTIDAS"}</button>}</section><SiteFooter /></main>;
 }
+
+function AvailableServer({ server }: { server?: MatchServer }) {
+  if (!server || server.status === "offline") return <div className="empty-match"><strong>{server ? statusLabel(server.status) : "CARGANDO SERVIDORES"}</strong><p>No se ha recibido un heartbeat reciente de este servidor.</p></div>;
+  const players = server.players ?? [];
+  return <div className="available-server"><div className="available-copy"><span>LISTO PARA JUGAR</span><h2>SERVIDOR EN LÍNEA</h2><p>Esperando la siguiente partida del matchmaking. Los jugadores conectados aparecen aquí en tiempo real.</p><div className="server-join-data"><small>DIRECCIÓN</small><strong>KEKE.LIVE</strong><span>JAVA 1.8+</span></div></div><div className="online-roster"><div className="online-roster-head"><div><small>JUGADORES CONECTADOS</small><strong>{server.player_count} ONLINE</strong></div><span>{server.name}</span></div>{players.length ? <div className="online-player-grid">{players.map((player) => <OnlinePlayerCard key={player.minecraft_uuid ?? player.minecraft_username} player={player} />)}</div> : <p className="online-roster-empty">NO HAY JUGADORES CONECTADOS</p>}</div></div>;
+}
+
+function OnlinePlayerCard({ player }: { player: OnlinePlayer }) { const avatar = headUrl(player.minecraft_uuid, 48); return <div className="online-player-card">{avatar ? <img src={avatar} alt="" width={48} height={48} /> : <span>{player.minecraft_username.slice(0, 1).toUpperCase()}</span>}<div><strong>{player.minecraft_username}</strong><small>EN EL SERVIDOR</small></div></div>; }
+
+function PlayerRow({ player }: { player: Participant }) { const avatar = headUrl(player.minecraft_uuid); return <div className="match-player">{avatar ? <img src={avatar} alt="" width={30} height={30} /> : <span>{player.minecraft_username.slice(0, 1).toUpperCase()}</span>}<strong>{player.minecraft_username}</strong><small>JUGANDO</small></div>; }
+function HistoryRow({ match }: { match: HistoryMatch }) { const first = match.teams[0]?.players.map((player) => player.minecraft_username).join(" / ") || "—", second = match.teams[1]?.players.map((player) => player.minecraft_username).join(" / ") || "—", winner = match.winner_team ? `${match.winner_team.toUpperCase()} GANA` : "FINALIZADA"; return <a className="match-history-row" href={`/matches/${match.match_id}`} aria-label={`Abrir partida ${match.match_id}`}><strong>{match.match_id}</strong><span>{match.server_key?.replace("ranked-", "RANKED ") ?? "SIN REGISTRO"}</span><span className="history-mode">{match.match_type}</span><span>{match.map_name}</span><span>{first}</span><strong className="history-score">{winner}</strong><span>{second}</span><time>{duration(match.duration_seconds)}</time><small>{relativeDate(match.end_time)}</small></a>; }

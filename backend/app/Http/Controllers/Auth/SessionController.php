@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Services\MinecraftIdentityService;
 
 class SessionController extends Controller
 {
@@ -14,9 +15,9 @@ class SessionController extends Controller
         return response()->json(['token' => csrf_token()]);
     }
 
-    public function me(Request $request): JsonResponse
+    public function me(Request $request, MinecraftIdentityService $minecraftIdentity): JsonResponse
     {
-        $user = $request->user()->load('roles.permissions');
+        $user = $minecraftIdentity->sync($request->user())->load('roles.permissions');
 
         return response()->json([
             'data' => [
@@ -35,7 +36,7 @@ class SessionController extends Controller
                     ->unique()
                     ->values(),
             ],
-        ]);
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     public function logout(Request $request): JsonResponse

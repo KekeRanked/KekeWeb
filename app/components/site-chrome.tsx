@@ -24,6 +24,17 @@ const socialLinks = [
   { label: "GitHub", icon: FaGithub },
 ] as const;
 
+type SessionUser = {
+  name: string;
+  discord_id: string;
+  discord_username: string;
+  discord_avatar: string | null;
+  minecraft_uuid: string | null;
+  minecraft_username: string | null;
+  roles?: string[];
+  permissions?: string[];
+};
+
 function ThemeToggle({ theme, onToggle }: { theme: "dark" | "light"; onToggle: () => void }) {
   return (
     <button className="theme-toggle" type="button" onClick={onToggle} aria-label={`Cambiar a modo ${theme === "dark" ? "claro" : "oscuro"}`}>
@@ -35,13 +46,24 @@ function ThemeToggle({ theme, onToggle }: { theme: "dark" | "light"; onToggle: (
 
 export function SiteHeader({ active }: { active: Section }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("keke-theme");
     const nextTheme = savedTheme === "light" ? "light" : "dark";
     setTheme(nextTheme);
     document.documentElement.dataset.theme = nextTheme;
+
+    fetch("/auth/me", {
+      credentials: "include",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    })
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => setUser(payload?.data ?? null))
+      .catch(() => setUser(null));
   }, []);
 
   function toggleTheme() {
@@ -50,6 +72,31 @@ export function SiteHeader({ active }: { active: Section }) {
     document.documentElement.dataset.theme = nextTheme;
     window.localStorage.setItem("keke-theme", nextTheme);
   }
+
+  async function logout() {
+    const csrfResponse = await fetch("/auth/csrf", {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!csrfResponse.ok) return;
+
+    const { token } = await csrfResponse.json();
+    const response = await fetch("/auth/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+    });
+
+    if (response.ok) setUser(null);
+  }
+
+  const avatarUrl = user?.minecraft_uuid
+    ? `https://mc-heads.net/avatar/${user.minecraft_uuid}/40.png`
+    : user?.discord_avatar
+      ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png?size=64`
+      : null;
+  const accountName = user?.minecraft_username ?? user?.name;
 
   return (
     <>
@@ -69,10 +116,26 @@ export function SiteHeader({ active }: { active: Section }) {
 
           <div className="utility-actions">
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            <button className="login-button" type="button" aria-label="Iniciar sesión">
-              <FaUser aria-hidden="true" />
-              <span>ACCESO</span>
-            </button>
+            {user ? (
+              <div className="account-menu">
+                <button className="login-button is-authenticated" type="button" onClick={() => setAccountOpen((current) => !current)} aria-expanded={accountOpen} aria-haspopup="menu" aria-label={`Menú de cuenta de ${accountName}`} title="Abrir menú de cuenta">
+                  {avatarUrl ? <img src={avatarUrl} alt="" aria-hidden="true" /> : <FaUser aria-hidden="true" />}
+                  <span>{accountName}</span><i className="account-chevron" aria-hidden="true" />
+                </button>
+                {accountOpen && <div className="account-dropdown" role="menu">
+                  {user.roles?.[0] && <small className="account-role">{user.roles[0].toUpperCase()}</small>}
+                  <a href={user.minecraft_uuid ? `/players/${user.minecraft_uuid}` : "/"} role="menuitem" onClick={() => setAccountOpen(false)}>PERFIL</a>
+                  <button type="button" role="menuitem" onClick={() => void logout()}>CERRAR SESIÓN</button>
+                  {(user.permissions ?? []).some((permission) => ["events.manage", "content.manage"].includes(permission)) && <a href="/staff/contenido" role="menuitem" onClick={() => setAccountOpen(false)}>PANEL DE CONTENIDO</a>}
+                  {(user.permissions ?? []).includes("staff.manage") && <a href="/staff/roles" role="menuitem" onClick={() => setAccountOpen(false)}>PANEL DE STAFF</a>}
+                </div>}
+              </div>
+            ) : (
+              <a className="login-button" href="/auth/discord" aria-label="Iniciar sesión con Discord">
+                <FaDiscord aria-hidden="true" />
+                <span>ACCESO</span>
+              </a>
+            )}
           </div>
         </div>
       </div>

@@ -1,83 +1,22 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "../../components/site-chrome";
 
-const recentContent = [
-  { type: "COMUNICADO", title: "Comienza la Temporada 04", status: "PUBLICADO", author: "KekeAdmin", date: "11 AGO 2026" },
-  { type: "REGLAMENTO", title: "Reglas de Minecraft v2.4", status: "PUBLICADO", author: "ModTeam", date: "09 AGO 2026" },
-  { type: "EVENTO", title: "Draft de Capitanes", status: "BORRADOR", author: "EventManager", date: "08 AGO 2026" },
-];
+type EventItem = { id: number; title: string; status: string; author?: { name?: string }; metadata?: { type?: string; date?: string } | null };
+
+async function csrf() {
+  const response = await fetch("/auth/csrf", { credentials: "include", headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("La sesión expiró. Vuelve a iniciar sesión.");
+  return (await response.json()).token as string;
+}
 
 export default function StaffContentPage() {
-  const [contentType, setContentType] = useState("Comunicado");
-  const [title, setTitle] = useState("");
-  const [summary, setSummary] = useState("");
-  const [feedback, setFeedback] = useState("");
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFeedback("Vista previa actualizada. El guardado permanente se activará al conectar el backend.");
-  }
-
-  return (
-    <main>
-      <SiteHeader active="staff" />
-      <section className="staff-header">
-        <div><p className="eyebrow"><span>PANEL DE STAFF</span> GESTIÓN DE CONTENIDO</p><h1>PUBLICAR<br />INFORMACIÓN.</h1></div>
-        <div className="staff-identity"><small>SESIÓN ACTUAL</small><strong>KekeAdmin</strong><span>Administrador</span></div>
-      </section>
-
-      <section className="staff-workspace">
-        <aside className="staff-sidebar">
-          <small>CONTENIDO</small>
-          <button className="is-active" type="button">Crear publicación</button>
-          <button type="button">NEWS</button>
-          <button type="button">Reglamentos</button>
-          <button type="button">Eventos</button>
-          <span />
-          <small>CONFIGURACIÓN</small>
-          <button type="button">Permisos del staff</button>
-          <button type="button">Historial de cambios</button>
-        </aside>
-
-        <div className="staff-main">
-          <div className="staff-section-heading"><div><small>NUEVA ENTRADA</small><h2>CREAR PUBLICACIÓN</h2></div><span>Los campos marcados son obligatorios</span></div>
-          <div className="editor-grid">
-            <form className="content-form" onSubmit={handleSubmit}>
-              <label>Tipo de contenido<select value={contentType} onChange={(event) => setContentType(event.target.value)}><option>Comunicado</option><option>Regla</option><option>Evento</option></select></label>
-              <label>Título<input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Escribe un título claro" /></label>
-              <div className="form-row">
-                <label>Categoría<select><option>Competitivo</option><option>Mantenimiento</option><option>Comunidad</option><option>Administración</option></select></label>
-                <label>Estado<select><option>Borrador</option><option>Publicado</option><option>Programado</option></select></label>
-              </div>
-              <label>Resumen<textarea required rows={3} value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Explica lo más importante en pocas líneas" /></label>
-              <label>Contenido completo<textarea required rows={9} placeholder="Redacta aquí toda la publicación" /></label>
-              <div className="form-row">
-                <label>Fecha del evento o publicación<input type="datetime-local" /></label>
-                <label>Imagen de portada<input accept="image/png,image/jpeg,image/webp" type="file" /></label>
-              </div>
-              <div className="form-actions"><button className="button-muted" type="button">GUARDAR BORRADOR</button><button className="button-primary" type="submit">ACTUALIZAR VISTA PREVIA</button></div>
-              {feedback && <p className="form-feedback" role="status">{feedback}</p>}
-            </form>
-
-            <aside className="content-preview">
-              <div className="preview-label"><span>VISTA PREVIA</span><small>PÚBLICO</small></div>
-              <div className="preview-art"><span>{contentType.toUpperCase().slice(0, 3)}</span></div>
-              <div className="preview-copy"><small>{contentType.toUpperCase()} · BORRADOR</small><h3>{title || "Título de la publicación"}</h3><p>{summary || "El resumen aparecerá aquí para que puedas revisar cómo lo verán los jugadores antes de publicar."}</p><span>KEKE NETWORK · HOY</span></div>
-            </aside>
-          </div>
-
-          <div className="recent-content">
-            <div className="staff-section-heading"><div><small>ACTIVIDAD</small><h2>CONTENIDO RECIENTE</h2></div></div>
-            <div className="content-table-head"><span>Tipo</span><span>Título</span><span>Estado</span><span>Autor</span><span>Fecha</span><span>Acción</span></div>
-            {recentContent.map((item) => (
-              <div className="content-table-row" key={item.title}><span>{item.type}</span><strong>{item.title}</strong><span className={item.status === "PUBLICADO" ? "status-live" : "status-draft"}>{item.status}</span><span>{item.author}</span><span>{item.date}</span><button type="button">EDITAR</button></div>
-            ))}
-          </div>
-        </div>
-      </section>
-      <SiteFooter />
-    </main>
-  );
+  const [allowed, setAllowed] = useState<boolean | null>(null), [events, setEvents] = useState<EventItem[]>([]);
+  const [type, setType] = useState("tournament"), [title, setTitle] = useState(""), [summary, setSummary] = useState(""), [body, setBody] = useState("");
+  const [date, setDate] = useState(""), [format, setFormat] = useState(""), [slots, setSlots] = useState(""), [prize, setPrize] = useState(""), [status, setStatus] = useState("draft"), [feedback, setFeedback] = useState("");
+  function loadEvents() { return fetch("/api/admin/events", { credentials: "include", headers: { Accept: "application/json" } }).then((r) => { if (!r.ok) throw new Error("No se pudieron cargar los eventos."); return r.json(); }).then((p) => setEvents(p.data ?? [])); }
+  useEffect(() => { fetch("/auth/me", { credentials: "include", cache: "no-store", headers: { Accept: "application/json" } }).then((r) => r.ok ? r.json() : null).then((p) => { const permissions = p?.data?.permissions ?? []; const roles = p?.data?.roles ?? []; const canManage = permissions.includes("events.manage") || roles.includes("owner") || roles.includes("admin"); setAllowed(canManage); if (canManage) return loadEvents(); return undefined; }).catch(() => setAllowed(false)); }, []);
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setFeedback(""); try { const token = await csrf(); const response = await fetch("/api/admin/events", { method: "POST", credentials: "include", headers: { Accept: "application/json", "Content-Type": "application/json", "X-CSRF-TOKEN": token }, body: JSON.stringify({ title, excerpt: summary, body: body || summary, status, metadata: { type, date, format, slots, prize } }) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.message ?? "No se pudo guardar el evento."); setFeedback(status === "published" ? "Evento publicado correctamente." : "Borrador guardado correctamente."); setTitle(""); setSummary(""); setBody(""); setDate(""); setFormat(""); setSlots(""); setPrize(""); await loadEvents(); } catch (reason) { setFeedback(reason instanceof Error ? reason.message : "No se pudo guardar el evento."); } }
+  return <main><SiteHeader active="staff" /><section className="staff-header"><div><p className="eyebrow"><span>PANEL DE STAFF</span> GESTIÓN DE EVENTOS</p><h1>PUBLICAR<br />DRAFTS Y TORNEOS.</h1></div><div className="staff-identity"><small>CONTROL DE ACCESO</small><strong>STAFF AUTORIZADO</strong><span>Permiso events.manage</span></div></section><section className="staff-workspace"><aside className="staff-sidebar"><small>CONTENIDO</small><a href="/staff/contenido" className="is-active">Eventos</a><a href="/eventos">Ver página pública</a><span /><small>CONFIGURACIÓN</small><a href="/staff/roles">Roles del staff</a></aside><div className="staff-main">{allowed === null && <p className="history-empty">VERIFICANDO SESIÓN…</p>}{allowed === false && <div className="staff-load-state" role="alert">Necesitas iniciar sesión con una cuenta de Staff autorizada para administrar eventos.</div>}{allowed && <><div className="staff-section-heading"><div><small>NUEVA PUBLICACIÓN</small><h2>CREAR EVENTO</h2></div><span>Los eventos publicados aparecen en Eventos</span></div><form className="content-form" onSubmit={handleSubmit}><div className="form-row"><label>Tipo<select value={type} onChange={(e) => setType(e.target.value)}><option value="tournament">Torneo</option><option value="draft">Draft</option></select></label><label>Estado<select value={status} onChange={(e) => setStatus(e.target.value)}><option value="draft">Borrador</option><option value="published">Publicado</option></select></label></div><label>Título<input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nombre del draft o torneo" /></label><label>Resumen<textarea required rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Información principal para los jugadores" /></label><label>Reglamento y detalles<textarea rows={7} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Formato, requisitos, inscripción y reglas" /></label><div className="form-row"><label>Fecha<input value={date} onChange={(e) => setDate(e.target.value)} placeholder="Por anunciar" /></label><label>Formato<input value={format} onChange={(e) => setFormat(e.target.value)} placeholder="5v5 CTW" /></label></div><div className="form-row"><label>Cupo<input value={slots} onChange={(e) => setSlots(e.target.value)} placeholder="10 equipos" /></label><label>Premio<input value={prize} onChange={(e) => setPrize(e.target.value)} placeholder="Por anunciar" /></label></div><div className="form-actions"><button className="button-primary" type="submit">{status === "published" ? "PUBLICAR EVENTO" : "GUARDAR BORRADOR"}</button></div>{feedback && <p className="form-feedback" role="status">{feedback}</p>}</form><div className="recent-content"><div className="staff-section-heading"><div><small>ACTIVIDAD</small><h2>EVENTOS CREADOS</h2></div></div><div className="content-table-head"><span>Tipo</span><span>Título</span><span>Estado</span><span>Autor</span><span>Fecha</span><span>ID</span></div>{events.map((item) => <div className="content-table-row" key={item.id}><span>{item.metadata?.type === "draft" ? "DRAFT" : "TORNEO"}</span><strong>{item.title}</strong><span className={item.status === "published" ? "status-live" : "status-draft"}>{item.status === "published" ? "PUBLICADO" : "BORRADOR"}</span><span>{item.author?.name ?? "Staff"}</span><span>{item.metadata?.date ?? "—"}</span><span>#{item.id}</span></div>)}</div></>}</div></section><SiteFooter /></main>;
 }

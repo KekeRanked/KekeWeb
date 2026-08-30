@@ -1,0 +1,14 @@
+.git
+.github
+.next
+.vinext
+.wrangler
+dist
+node_modules
+npm-debug.log*
+backend/.env*
+backend/vendor
+backend/node_modules
+backend/storage/logs/*
+backend/bootstrap/cache/*.php
+backend_listo_para_subir.zip

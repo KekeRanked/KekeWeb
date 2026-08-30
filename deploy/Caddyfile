@@ -1,0 +1,23 @@
+{
+	email {$ACME_EMAIL:admin@keke.live}
+	admin off
+}
+
+keke.live, www.keke.live, http://158.69.223.95 {
+	encode zstd gzip
+
+	@backend path /api /api/* /auth /auth/* /sanctum /sanctum/*
+	handle @backend {
+		reverse_proxy api-web:80
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

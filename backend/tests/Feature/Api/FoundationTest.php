@@ -81,4 +81,38 @@ class FoundationTest extends TestCase
         $this->assertDatabaseHas('live_matches', ['match_id' => 'match-test-1']);
         $this->assertDatabaseCount('live_match_participants', 3);
     }
+
+    public function test_duplicate_pgm_participant_does_not_reject_the_heartbeat(): void
+    {
+        config(['ranked.server_tokens.ranked-1' => 'test-secret']);
+
+        $this->withHeader('X-Server-Token', 'test-secret')
+            ->putJson('/api/internal/servers/ranked-1/snapshot', [
+                'status' => 'playing',
+                'player_count' => 18,
+                'match' => [
+                    'match_id' => 'match-duplicate-participant',
+                    'queue_key' => 'pgm',
+                    'map_name' => 'Bastion',
+                    'phase' => 'playing',
+                    'participants' => [
+                        ['minecraft_uuid' => '892c1f08-ee8c-4fbd-af90-0d6218770e73', 'minecraft_username' => 'lowih', 'team' => 'red', 'role' => 'player'],
+                        ['minecraft_uuid' => '892c1f08-ee8c-4fbd-af90-0d6218770e73', 'minecraft_username' => 'lowih', 'role' => 'observer'],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('server', 'ranked-1');
+
+        $this->assertDatabaseCount('live_match_participants', 1);
+        $this->assertDatabaseHas('live_match_participants', [
+            'minecraft_username' => 'lowih',
+            'team' => 'red',
+            'role' => 'player',
+        ]);
+        $this->assertDatabaseHas('match_servers', [
+            'server_key' => 'ranked-1',
+            'player_count' => 18,
+        ]);
+    }
 }

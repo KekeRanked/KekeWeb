@@ -23,15 +23,17 @@ class AuthorizationSeeder extends Seeder
         ));
 
         $roles = [
-            'owner' => ['Dueño', $permissions->keys()->all()],
-            'admin' => ['Administrador', $permissions->keys()->all()],
-            'editor' => ['Editor', ['content.manage', 'rules.manage', 'events.manage']],
-            'moderator' => ['Moderador', ['rules.manage', 'events.manage']],
-            'support' => ['Soporte', []],
+            'owner' => ['Dueño', 100, $permissions->keys()->all()],
+            'manager' => ['Manager', 80, ['content.manage', 'rules.manage', 'events.manage', 'staff.manage', 'store.manage', 'tournaments.manage']],
+            'admin' => ['Administrador', 60, ['content.manage', 'rules.manage', 'events.manage', 'staff.manage', 'store.manage', 'tournaments.manage']],
+            'moderator' => ['Moderador', 40, ['rules.manage', 'events.manage']],
+            'screensharer' => ['Screensharer', 40, ['rules.manage']],
+            'sponsor' => ['Sponsor', 10, []],
+            'builder' => ['Builder', 40, []],
         ];
 
-        foreach ($roles as $key => [$name, $permissionKeys]) {
-            $role = Role::query()->updateOrCreate(['key' => $key], ['name' => $name]);
+        foreach ($roles as $key => [$name, $priority, $permissionKeys]) {
+            $role = Role::query()->updateOrCreate(['key' => $key], ['name' => $name, 'priority' => $priority]);
             $role->permissions()->sync($permissions->whereIn('key', $permissionKeys)->pluck('id'));
         }
     }
