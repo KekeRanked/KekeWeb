@@ -8,6 +8,7 @@ use App\Models\Permission;
 use App\Models\StaffMember;
 use App\Models\User;
 use App\Models\Minecraft\RankedPlayer;
+use App\Services\StaffAuthorizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
@@ -85,7 +86,11 @@ class RoleAdminController extends Controller
         return response()->json(['data' => $user->fresh()->load('roles:id,key,name')]);
     }
 
-    public function updatePublicStaff(Request $request, string $minecraftUuid): JsonResponse
+    public function updatePublicStaff(
+        Request $request,
+        string $minecraftUuid,
+        StaffAuthorizationService $staffAuthorization,
+    ): JsonResponse
     {
         $data = $request->validate([
             'role' => ['required', 'string', 'exists:roles,key'],
@@ -110,6 +115,11 @@ class RoleAdminController extends Controller
             $data,
         );
 
+        $linkedUser = User::query()->where('minecraft_uuid', $minecraftUuid)->first();
+        if ($linkedUser) {
+            $staffAuthorization->sync($linkedUser);
+        }
+
         return response()->json(['data' => [
             'minecraft_uuid' => $member->minecraft_uuid,
             'minecraft_username' => RankedPlayer::query()->where('minecraft_uuid', $member->minecraft_uuid)->value('minecraft_username'),
@@ -120,7 +130,11 @@ class RoleAdminController extends Controller
         ]]);
     }
 
-    public function deletePublicStaff(Request $request, string $minecraftUuid): JsonResponse
+    public function deletePublicStaff(
+        Request $request,
+        string $minecraftUuid,
+        StaffAuthorizationService $staffAuthorization,
+    ): JsonResponse
     {
         $member = StaffMember::query()->where('minecraft_uuid', $minecraftUuid)->firstOrFail();
         $roleKey = $member->role === 'administrator' ? 'admin' : $member->role;
@@ -130,6 +144,11 @@ class RoleAdminController extends Controller
         $isSelf = $actor->minecraft_uuid === $minecraftUuid;
         abort_if($targetPriority > $actorPriority || ($targetPriority === $actorPriority && ! $isSelf), 403, 'No puedes retirar un miembro de nivel igual o superior al tuyo.');
         $member->delete();
+
+        $linkedUser = User::query()->where('minecraft_uuid', $minecraftUuid)->first();
+        if ($linkedUser) {
+            $staffAuthorization->revoke($linkedUser);
+        }
 
         return response()->json([], 204);
     }

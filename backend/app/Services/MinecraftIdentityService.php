@@ -10,6 +10,10 @@ use Throwable;
 
 class MinecraftIdentityService
 {
+    public function __construct(
+        private readonly StaffAuthorizationService $staffAuthorization,
+    ) {}
+
     public function sync(User $user): User
     {
         if (! $user->discord_id || ! $this->connectionIsConfigured()) {
@@ -22,7 +26,7 @@ class MinecraftIdentityService
                 ->where('is_verified', 1)
                 ->first(['minecraft_uuid', 'minecraft_username']);
 
-            return DB::transaction(function () use ($user, $player): User {
+            $syncedUser = DB::transaction(function () use ($user, $player): User {
                 if ($player) {
                     User::query()
                         ->where('minecraft_uuid', $player->minecraft_uuid)
@@ -40,6 +44,8 @@ class MinecraftIdentityService
 
                 return $user->refresh();
             });
+
+            return $this->staffAuthorization->sync($syncedUser);
         } catch (Throwable $exception) {
             Log::warning('No fue posible sincronizar la identidad de Minecraft verificada.', [
                 'exception' => $exception::class,
