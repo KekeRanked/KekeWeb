@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "../components/site-chrome";
 import { RichTextInline } from "../components/rich-text";
@@ -17,6 +16,19 @@ type EventItem = {
 
 function plain(value: string | null | undefined) {
   return value?.replace(/^#{1,3}\s+/gm, "").replace(/\*\*([^*]+)\*\*/g, "$1") ?? "";
+}
+
+const monthNames: Record<string, string> = {
+  enero: "ENE", febrero: "FEB", marzo: "MAR", abril: "ABR", mayo: "MAY", junio: "JUN",
+  julio: "JUL", agosto: "AGO", septiembre: "SEP", setiembre: "SEP", octubre: "OCT", noviembre: "NOV", diciembre: "DIC",
+};
+
+function compactDate(value: string | undefined) {
+  if (!value) return null;
+  const match = value.trim().match(/^(?:[^,]+,\s*)?(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})(?:\s+(\d{1,2}:\d{2}))?$/i);
+  if (!match) return null;
+  const normalizedMonth = match[2].normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return { day: match[1].padStart(2, "0"), month: monthNames[normalizedMonth] ?? normalizedMonth.slice(0, 3).toUpperCase(), year: match[3], time: match[4] ?? "—" };
 }
 
 export default function EventosPage() {
@@ -65,14 +77,16 @@ export default function EventosPage() {
         <div className="event-list">
           {loading && <p className="history-empty">CARGANDO EVENTOS…</p>}
           {!loading && !events.length && <p className="history-empty">{history ? "AÚN NO HAY EVENTOS EN EL HISTORIAL" : "AÚN NO HAY DRAFTS NI TORNEOS PUBLICADOS"}</p>}
-          {events.map((event, index) => (
+          {events.map((event, index) => {
+            const eventDate = compactDate(event.metadata?.date);
+            return (
             <article className={!history && index === 0 ? "event-card is-featured" : "event-card"} key={event.id}>
-              <div className="event-date"><span>{event.metadata?.type === "draft" ? "DRAFT" : "TORNEO"}</span><strong>{event.metadata?.date ?? "POR DEFINIR"}</strong></div>
+              <div className="event-date"><span>{event.metadata?.type === "draft" ? "DRAFT" : "TORNEO"}</span>{eventDate ? <div className="event-date-compact"><strong>{eventDate.day}</strong><div><b>{eventDate.month} {eventDate.year}</b><time>{eventDate.time}</time></div></div> : <b className="event-date-fallback">{event.metadata?.date ?? "POR DEFINIR"}</b>}</div>
               <div className="event-detail"><small>{history ? "FINALIZADO" : "PUBLICADO"}</small><h3>{event.title}</h3><p>{history && (event.metadata?.winner_team || event.metadata?.champion) ? <>Ganador: <RichTextInline value={event.metadata.winner_team ?? event.metadata.champion ?? ""} /> · {event.metadata.winners?.length ?? 0} integrantes vinculados</> : ((event.metadata?.format ?? plain(event.excerpt)) || "Detalles por anunciar.")}</p></div>
               <div className="event-capacity"><small>{history ? "RESULTADO" : "CUPO"}</small><strong>{history ? <RichTextInline value={event.metadata?.winner_team ?? event.metadata?.champion ?? "Ver publicación"} /> : event.metadata?.slots ?? "Por confirmar"}</strong></div>
-              <Link className="event-card-link" href={`/eventos/${encodeURIComponent(event.slug)}`}>VER DETALLES</Link>
+              <a className="event-card-link" href={`/eventos/${encodeURIComponent(event.slug)}`}>VER DETALLES</a>
             </article>
-          ))}
+          );})}
         </div>
 
         {!history && <div className="event-process">

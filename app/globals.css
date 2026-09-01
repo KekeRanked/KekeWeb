@@ -1781,7 +1781,7 @@ html[data-theme="light"] .theme-toggle-track i {
 .event-date {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 .event-date span,
 .event-detail small {
@@ -1791,10 +1791,34 @@ html[data-theme="light"] .theme-toggle-track i {
     monospace;
   letter-spacing: 0.13em;
 }
-.event-date strong {
-  font:
-    850 25px/1 var(--font-geist-mono),
-    monospace;
+.event-date-compact {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.event-date-compact > strong {
+  min-width: 48px;
+  color: var(--paper);
+  font: 900 37px/0.9 Arial Black, sans-serif;
+  letter-spacing: -0.06em;
+}
+.event-date-compact > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.event-date-compact b,
+.event-date-compact time,
+.event-date-fallback {
+  font: 800 9px/1 var(--font-geist-mono), monospace;
+  letter-spacing: 0.07em;
+}
+.event-date-compact time {
+  color: #8c887e;
+}
+.event-date-fallback {
+  max-width: 145px;
+  line-height: 1.45;
 }
 .event-detail h3 {
   margin: 8px 0 6px;
