@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Minecraft avatar service uses dynamic UUID paths. */
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { KeyboardEvent, useState } from "react";
 
 export type VerifiedPlayer = {
   minecraft_uuid: string;
@@ -25,8 +25,7 @@ export function VerifiedPlayerPicker({ title, description, selected, onChange, m
   const [feedback, setFeedback] = useState("");
   const [searching, setSearching] = useState(false);
 
-  async function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function search() {
     const term = query.trim();
     if (term.length < 2) {
       setFeedback("Escribe al menos 2 caracteres.");
@@ -61,11 +60,17 @@ export function VerifiedPlayerPicker({ title, description, selected, onChange, m
     onChange(selected.filter((player) => player.minecraft_uuid !== uuid));
   }
 
+  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    void search();
+  }
+
   return (
     <section className="verified-player-picker">
       <div className="player-picker-heading"><div><strong>{title}</strong><span>{description}</span></div><small>{selected.length}{max ? ` / ${max}` : ""} SELECCIONADOS</small></div>
       {selected.length > 0 && <div className="selected-player-list">{selected.map((player) => <div className="selected-player" key={player.minecraft_uuid}><img src={`https://mc-heads.net/avatar/${player.minecraft_uuid}/36.png`} alt="" width={36} height={36} /><div><Link href={`/players/${encodeURIComponent(player.minecraft_username)}`} target="_blank">{player.minecraft_username}</Link><small>CUENTA VERIFICADA</small></div><button type="button" onClick={() => remove(player.minecraft_uuid)} aria-label={`Quitar a ${player.minecraft_username}`}>×</button></div>)}</div>}
-      <form className="player-search" onSubmit={search}><label htmlFor={`${title.replace(/\s+/g, "-").toLowerCase()}-search`}>Buscar por nick, Discord o UUID</label><div><input id={`${title.replace(/\s+/g, "-").toLowerCase()}-search`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre de Minecraft…" /><button type="submit" disabled={searching}>{searching ? "BUSCANDO…" : "BUSCAR"}</button></div></form>
+      <div className="player-search"><label htmlFor={`${title.replace(/\s+/g, "-").toLowerCase()}-search`}>Buscar por nick, Discord o UUID</label><div><input id={`${title.replace(/\s+/g, "-").toLowerCase()}-search`} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Nombre de Minecraft…" /><button type="button" onClick={() => void search()} disabled={searching}>{searching ? "BUSCANDO…" : "BUSCAR"}</button></div></div>
       {feedback && <p className="picker-feedback" role="status">{feedback}</p>}
       {results.length > 0 && <div className="player-search-results">{results.map((player) => { const isSelected = selected.some((item) => item.minecraft_uuid === player.minecraft_uuid); return <div key={player.minecraft_uuid}><img src={`https://mc-heads.net/avatar/${player.minecraft_uuid}/32.png`} alt="" width={32} height={32} /><div><strong>{player.minecraft_username}</strong><small>{player.discord_id ? `Discord ${player.discord_id}` : "CUENTA VERIFICADA"}</small></div><button type="button" disabled={isSelected} onClick={() => add(player)}>{isSelected ? "AÑADIDO" : max === 1 && selected.length ? "REEMPLAZAR" : "AÑADIR"}</button></div>; })}</div>}
     </section>
