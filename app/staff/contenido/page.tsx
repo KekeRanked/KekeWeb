@@ -92,7 +92,7 @@ export default function StaffContentPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFeedback("");
-    if (publication === "history" && winners.length === 0) {
+    if (status === "published" && publication === "history" && winners.length === 0) {
       setFeedback("Selecciona al menos un integrante ganador desde las cuentas verificadas.");
       return;
     }
