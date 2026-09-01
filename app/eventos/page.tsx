@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "../components/site-chrome";
+import { RichTextInline } from "../components/rich-text";
 
 type EventItem = {
   id: number;
@@ -67,8 +68,8 @@ export default function EventosPage() {
           {events.map((event, index) => (
             <article className={!history && index === 0 ? "event-card is-featured" : "event-card"} key={event.id}>
               <div className="event-date"><span>{event.metadata?.type === "draft" ? "DRAFT" : "TORNEO"}</span><strong>{event.metadata?.date ?? "POR DEFINIR"}</strong></div>
-              <div className="event-detail"><small>{history ? "FINALIZADO" : "PUBLICADO"}</small><h3>{event.title}</h3><p>{history && (event.metadata?.winner_team || event.metadata?.champion) ? `Ganador: ${event.metadata.winner_team ?? event.metadata.champion} · ${event.metadata.winners?.length ?? 0} integrantes vinculados` : ((event.metadata?.format ?? plain(event.excerpt)) || "Detalles por anunciar.")}</p></div>
-              <div className="event-capacity"><small>{history ? "RESULTADO" : "CUPO"}</small><strong>{history ? event.metadata?.winner_team ?? event.metadata?.champion ?? "Ver publicación" : event.metadata?.slots ?? "Por confirmar"}</strong></div>
+              <div className="event-detail"><small>{history ? "FINALIZADO" : "PUBLICADO"}</small><h3>{event.title}</h3><p>{history && (event.metadata?.winner_team || event.metadata?.champion) ? <>Ganador: <RichTextInline value={event.metadata.winner_team ?? event.metadata.champion ?? ""} /> · {event.metadata.winners?.length ?? 0} integrantes vinculados</> : ((event.metadata?.format ?? plain(event.excerpt)) || "Detalles por anunciar.")}</p></div>
+              <div className="event-capacity"><small>{history ? "RESULTADO" : "CUPO"}</small><strong>{history ? <RichTextInline value={event.metadata?.winner_team ?? event.metadata?.champion ?? "Ver publicación"} /> : event.metadata?.slots ?? "Por confirmar"}</strong></div>
               <Link className="event-card-link" href={`/eventos/${encodeURIComponent(event.slug)}`}>VER DETALLES</Link>
             </article>
           ))}

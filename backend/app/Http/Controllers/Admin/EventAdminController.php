@@ -241,7 +241,7 @@ class EventAdminController extends Controller
         }
 
         if (isset($data['metadata'])) {
-            foreach (['rewards', 'instructions'] as $field) {
+            foreach (['rewards', 'instructions', 'winner_team', 'champion'] as $field) {
                 $value = $data['metadata'][$field] ?? null;
                 if (! is_string($value)) continue;
                 preg_match_all('/@\[[^\]]+\]\(player:([0-9a-f-]{36})\)/i', $value, $matches);
@@ -282,7 +282,7 @@ class EventAdminController extends Controller
         foreach ($fields as $field) {
             if (isset($data[$field])) $data[$field] = $normalize($data[$field]);
         }
-        foreach (['rewards', 'instructions'] as $field) {
+        foreach (['rewards', 'instructions', 'winner_team', 'champion'] as $field) {
             if (isset($data['metadata'][$field])) {
                 $data['metadata'][$field] = $normalize($data['metadata'][$field]);
             }

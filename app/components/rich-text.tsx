@@ -42,6 +42,10 @@ function inlineMarkdown(value: string): ReactNode[] {
   });
 }
 
+export function RichTextInline({ value, className = "" }: { value: string; className?: string }) {
+  return <span className={`rich-text-inline ${className}`.trim()}>{inlineMarkdown(value)}</span>;
+}
+
 export function RichText({ value, className = "" }: { value: string; className?: string }) {
   const blocks = value.replace(/\r\n/g, "\n").split("\n");
   return (
