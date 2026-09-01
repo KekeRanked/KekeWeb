@@ -10,6 +10,7 @@ type EventDetail = {
   title: string;
   excerpt: string | null;
   body: string;
+  cover_image: string | null;
   published_at: string | null;
   author?: { name?: string };
   metadata: {
@@ -66,6 +67,7 @@ export default function EventDetailClient({ slug }: { slug: string }) {
         {!event && !error && <p className="history-empty">CARGANDO PUBLICACIÓN…</p>}
         {event && <article>
           <header className="event-publication-header">
+            {event.cover_image && <img className="event-publication-banner" src={event.cover_image} alt={`Banner de ${event.title}`} />}
             <p className="eyebrow"><span>{metadata.is_history ? "EVENTO FINALIZADO" : "EVENTO PUBLICADO"}</span> {metadata.type === "draft" ? "DRAFT" : "TORNEO"}</p>
             <h1>{event.title}</h1>
             {event.excerpt && <RichText value={event.excerpt} className="event-publication-summary" />}

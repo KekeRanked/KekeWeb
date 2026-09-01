@@ -1907,6 +1907,15 @@ html[data-theme="light"] .theme-toggle-track i {
   max-width: 1000px;
   padding-bottom: 45px;
 }
+.event-publication-banner {
+  display: block;
+  width: 100%;
+  max-height: 560px;
+  margin-bottom: 34px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+  aspect-ratio: 16 / 9;
+}
 .event-publication-header h1 {
   margin: 18px 0 24px;
   font: 900 clamp(48px, 7vw, 100px)/0.9 Arial Black, sans-serif;
@@ -2454,6 +2463,71 @@ html[data-theme="light"] .theme-toggle-track i {
 .publication-form-section > header small {
   color: #77736a;
   font-size: 10px;
+}
+.event-banner-field {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: #0d0d0b;
+}
+.event-banner-field > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.event-banner-field > div:first-child strong {
+  font-size: 13px;
+}
+.event-banner-field > div:first-child small {
+  color: #77736a;
+  font: 600 8px/1.4 var(--font-geist-mono), monospace;
+  letter-spacing: 0.06em;
+}
+.event-banner-upload {
+  width: fit-content;
+  cursor: pointer;
+}
+.event-banner-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.event-banner-upload span,
+.event-banner-preview button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 177, 27, 0.55);
+  background: transparent;
+  color: var(--paper);
+  font: 800 8px/1 var(--font-geist-mono), monospace;
+  letter-spacing: 0.1em;
+}
+.event-banner-upload:hover span {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.event-banner-preview {
+  position: relative;
+  max-width: 780px;
+}
+.event-banner-preview img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line);
+  object-fit: cover;
+  aspect-ratio: 16 / 9;
+}
+.event-banner-preview button {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  cursor: pointer;
+  background: rgba(8, 8, 7, 0.88);
 }
 .history-publication-section {
   border-color: rgba(255, 177, 27, 0.45);
@@ -6519,6 +6593,7 @@ html[data-theme="light"] .rich-toolbar,
 html[data-theme="light"] .event-publication-facts,
 html[data-theme="light"] .event-publication-body,
 html[data-theme="light"] .publication-form-section,
+html[data-theme="light"] .event-banner-field,
 html[data-theme="light"] .verified-player-picker,
 html[data-theme="light"] .selected-player,
 html[data-theme="light"] .player-search-results > div,
@@ -6529,6 +6604,9 @@ html[data-theme="light"] .event-announcement-block {
 }
 html[data-theme="light"] .rich-toolbar button {
   background: #fffdf7;
+  color: #171612;
+}
+html[data-theme="light"] .event-banner-upload span {
   color: #171612;
 }
 html[data-theme="light"] .rich-text p,

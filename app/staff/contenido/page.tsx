@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Local object URLs are used for upload previews. */
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { AutoTextarea, RichTextEditor } from "../../components/rich-text";
 import { SiteFooter, SiteHeader } from "../../components/site-chrome";
 import { VerifiedPlayer, VerifiedPlayerPicker } from "../../components/verified-player-picker";
@@ -10,6 +11,7 @@ type EventItem = {
   id: number;
   title: string;
   status: string;
+  cover_image?: string | null;
   author?: { name?: string };
   metadata?: { type?: string; date?: string; is_history?: boolean } | null;
 };
@@ -31,6 +33,9 @@ export default function StaffContentPage() {
   const [publication, setPublication] = useState("upcoming");
   const [status, setStatus] = useState("draft");
   const [title, setTitle] = useState("");
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState("");
+  const [coverImage, setCoverImage] = useState("");
   const [summary, setSummary] = useState("");
   const [body, setBody] = useState("");
   const [date, setDate] = useState("");
@@ -75,6 +80,10 @@ export default function StaffContentPage() {
 
   function resetForm() {
     setTitle("");
+    if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+    setBannerFile(null);
+    setBannerPreview("");
+    setCoverImage("");
     setSummary("");
     setBody("");
     setDate("");
@@ -91,6 +100,33 @@ export default function StaffContentPage() {
     setHonorableReason("");
   }
 
+  function handleBannerChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setFeedback("El banner debe ser JPG, PNG o WEBP.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setFeedback("El banner no puede superar los 8 MB.");
+      event.target.value = "";
+      return;
+    }
+    if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
+    setCoverImage("");
+    setFeedback("");
+  }
+
+  function removeBanner() {
+    if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+    setBannerFile(null);
+    setBannerPreview("");
+    setCoverImage("");
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFeedback("");
@@ -104,6 +140,26 @@ export default function StaffContentPage() {
     const capacity = Number.isFinite(teams * roster) ? teams * roster : 0;
     try {
       const token = await csrf();
+      let uploadedCover = coverImage;
+      if (bannerFile) {
+        setFeedback("Subiendo y validando el banner…");
+        const uploadBody = new FormData();
+        uploadBody.append("banner", bannerFile);
+        const uploadResponse = await fetch("/api/admin/event-banners", {
+          method: "POST",
+          credentials: "include",
+          headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+          body: uploadBody,
+        });
+        const uploadPayload = await uploadResponse.json().catch(() => ({}));
+        if (!uploadResponse.ok) {
+          const validation = uploadPayload.errors ? Object.values(uploadPayload.errors).flat().join(" ") : null;
+          throw new Error(validation || uploadPayload.message || "No se pudo subir el banner.");
+        }
+        uploadedCover = uploadPayload.data?.url ?? "";
+        setCoverImage(uploadedCover);
+        setBannerFile(null);
+      }
       const response = await fetch("/api/admin/events", {
         method: "POST",
         credentials: "include",
@@ -112,6 +168,7 @@ export default function StaffContentPage() {
           title,
           excerpt: summary,
           body: body || summary,
+          cover_image: uploadedCover || null,
           status,
           metadata: {
             type,
@@ -174,7 +231,7 @@ export default function StaffContentPage() {
             <form className="content-form draft-publication-form" onSubmit={handleSubmit}>
               <section className="publication-form-section"><header><span>01</span><div><strong>PUBLICACIÓN</strong><small>Define dónde y cómo aparecerá</small></div></header><div className="form-row"><label>Tipo<select value={type} onChange={(event) => setType(event.target.value)}><option value="draft">Draft</option><option value="tournament">Torneo</option></select></label><label>Estado<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="draft">Borrador</option><option value="published">Publicado</option></select></label></div><label>Destino<select value={publication} onChange={(event) => setPublication(event.target.value)}><option value="upcoming">Agenda — próximo o en curso</option><option value="history">Historial — evento pasado/finalizado</option></select><small className="field-help">Los eventos pasados aparecen en “Ver eventos finalizados”.</small></label></section>
 
-              <section className="publication-form-section"><header><span>02</span><div><strong>ANUNCIO PRINCIPAL</strong><small>Equivale al encabezado y presentación en Discord</small></div></header><label>Título<input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="🧁 DRAFT #1 - CTW 🧁" /></label>{publication === "history" && <VerifiedPlayerPicker title="Capitán ganador" description="Selecciona su cuenta verificada para habilitar su mención en el mensaje" selected={winningCaptain ? [winningCaptain] : []} onChange={(players) => setWinningCaptain(players[0] ?? null)} max={1} />}<div className="form-field"><label htmlFor="event-summary">Mensaje principal</label><RichTextEditor id="event-summary" required rows={3} value={summary} onChange={setSummary} mentions={winningCaptain ? [winningCaptain] : []} placeholder="Descripción breve o felicitación principal" />{winningCaptain && <small className="field-help">Coloca el cursor donde quieres el nombre y pulsa “@ {winningCaptain.minecraft_username}” en la barra del editor.</small>}</div><div className="form-row"><label>Fecha y hora<input value={date} onChange={(event) => setDate(event.target.value)} placeholder="sábado, 15 de agosto de 2026 18:00" /></label><label>Apertura de Draft Queue<input value={queueOpens} onChange={(event) => setQueueOpens(event.target.value)} placeholder="15 minutos antes / fecha y hora" /></label></div></section>
+              <section className="publication-form-section"><header><span>02</span><div><strong>ANUNCIO PRINCIPAL</strong><small>Equivale al encabezado y presentación en Discord</small></div></header><label>Título<input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="🧁 DRAFT #1 - CTW 🧁" /></label><div className="event-banner-field"><div><strong>Banner del anuncio</strong><small>JPG, PNG o WEBP · máximo 8 MB · se recomienda formato horizontal 16:9</small></div><label className="event-banner-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerChange} /><span>{bannerPreview || coverImage ? "CAMBIAR BANNER" : "SUBIR BANNER"}</span></label>{(bannerPreview || coverImage) && <div className="event-banner-preview"><img src={bannerPreview || coverImage} alt="Vista previa del banner" /><button type="button" onClick={removeBanner}>QUITAR</button></div>}</div>{publication === "history" && <VerifiedPlayerPicker title="Capitán ganador" description="Selecciona su cuenta verificada para habilitar su mención en el mensaje" selected={winningCaptain ? [winningCaptain] : []} onChange={(players) => setWinningCaptain(players[0] ?? null)} max={1} />}<div className="form-field"><label htmlFor="event-summary">Mensaje principal</label><RichTextEditor id="event-summary" required rows={3} value={summary} onChange={setSummary} mentions={winningCaptain ? [winningCaptain] : []} placeholder="Descripción breve o felicitación principal" />{winningCaptain && <small className="field-help">Coloca el cursor donde quieres el nombre y pulsa “@ {winningCaptain.minecraft_username}” en la barra del editor.</small>}</div><div className="form-row"><label>Fecha y hora<input value={date} onChange={(event) => setDate(event.target.value)} placeholder="sábado, 15 de agosto de 2026 18:00" /></label><label>Apertura de Draft Queue<input value={queueOpens} onChange={(event) => setQueueOpens(event.target.value)} placeholder="15 minutos antes / fecha y hora" /></label></div></section>
 
               <section className="publication-form-section"><header><span>03</span><div><strong>CARACTERÍSTICAS</strong><small>Configuración visible del Draft</small></div></header><div className="form-row"><label>Cantidad de equipos<input type="number" min="2" max="64" value={teamCount} onChange={(event) => setTeamCount(event.target.value)} /></label><label>Jugadores por equipo<input type="number" min="1" max="64" value={playersPerTeam} onChange={(event) => setPlayersPerTeam(event.target.value)} /></label></div><div className="draft-capacity-summary"><small>CUPO CALCULADO</small><strong>{Number.isFinite(totalPlayers) ? totalPlayers : 0} PERSONAS</strong><span>{teamCount || "0"} equipos × {playersPerTeam || "0"} integrantes</span></div><div className="form-row"><label>Formato<input value={format} onChange={(event) => setFormat(event.target.value)} placeholder="5v5 CTW" /></label><label>Premio resumido<input value={prize} onChange={(event) => setPrize(event.target.value)} placeholder="+100 de ELO" /></label></div><div className="form-field"><label htmlFor="event-map-pool">Map pool — un mapa por línea</label><AutoTextarea id="event-map-pool" rows={5} value={mapPool} onChange={setMapPool} placeholder={'Summit\nVilla\nBarricade\nBastion'} /></div><div className="form-field"><label htmlFor="event-rewards">Recompensas</label><RichTextEditor id="event-rewards" rows={3} value={rewards} onChange={setRewards} placeholder="Los ganadores recibirán 100 de ELO y un rol personalizado…" /></div><div className="form-field"><label htmlFor="event-instructions">Indicaciones</label><RichTextEditor id="event-instructions" rows={3} value={instructions} onChange={setInstructions} placeholder="Uso obligatorio de micrófono…" /></div><div className="form-field"><label htmlFor="event-body">Detalles adicionales</label><RichTextEditor id="event-body" rows={5} value={body} onChange={setBody} placeholder="Información adicional que no forma parte del anuncio principal" /></div></section>
 

@@ -7,6 +7,7 @@ use App\Models\Content;
 use App\Models\Minecraft\RankedPlayer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -14,6 +15,33 @@ use Throwable;
 
 class EventAdminController extends Controller
 {
+    public function uploadBanner(Request $request): JsonResponse
+    {
+        $request->validate([
+            'banner' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:8192', 'dimensions:max_width=6000,max_height=6000'],
+        ]);
+
+        $file = $request->file('banner');
+        $filename = Str::uuid().'.'.$file->extension();
+        $stored = $file->storeAs('event-banners', $filename, 'public');
+
+        if (! $stored || ! Storage::disk('public')->exists($stored)) {
+            throw ValidationException::withMessages([
+                'banner' => 'No se pudo almacenar el banner.',
+            ]);
+        }
+
+        $dimensions = getimagesize($file->getRealPath()) ?: [null, null];
+
+        return response()->json([
+            'data' => [
+                'url' => '/api/event-banners/'.$filename,
+                'width' => $dimensions[0],
+                'height' => $dimensions[1],
+            ],
+        ], 201);
+    }
+
     public function index(Request $request): JsonResponse
     {
         return response()->json(Content::query()

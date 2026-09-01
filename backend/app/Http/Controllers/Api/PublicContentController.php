@@ -6,9 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Models\Content;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PublicContentController extends Controller
 {
+    public function eventBanner(string $filename): StreamedResponse
+    {
+        $path = 'event-banners/'.$filename;
+        abort_unless(Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->response($path, null, [
+            'Cache-Control' => 'public, max-age=31536000, immutable',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function news(Request $request): JsonResponse
     {
         return $this->listing($request, ['news']);

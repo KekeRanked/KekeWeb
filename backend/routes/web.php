@@ -36,6 +36,8 @@ Route::prefix('api')->middleware('auth')->group(function (): void {
         // Discord session cookie is available to the permission checks.
         Route::get('/admin/event-players', [EventAdminController::class, 'searchVerifiedPlayers'])
             ->middleware('permission:events.manage');
+        Route::post('/admin/event-banners', [EventAdminController::class, 'uploadBanner'])
+            ->middleware('permission:events.manage');
         Route::apiResource('/admin/events', EventAdminController::class)
             ->parameters(['events' => 'content'])
             ->middleware('permission:events.manage');

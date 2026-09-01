@@ -9,6 +9,7 @@ type EventItem = {
   slug: string;
   title: string;
   excerpt: string | null;
+  cover_image: string | null;
   status: string;
   metadata: { type?: string; date?: string; format?: string; slots?: string; prize?: string; is_history?: boolean; champion?: string; winner_team?: string; winners?: { minecraft_uuid: string; minecraft_username: string }[] } | null;
 };
