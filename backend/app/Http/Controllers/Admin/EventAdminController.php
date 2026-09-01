@@ -115,6 +115,10 @@ class EventAdminController extends Controller
             'metadata.rewards' => ['nullable', 'string', 'max:3000'],
             'metadata.instructions' => ['nullable', 'string', 'max:5000'],
             'metadata.winner_team' => [Rule::requiredIf(fn (): bool => $request->boolean('metadata.is_history') && $request->string('status')->toString() === 'published'), 'nullable', 'string', 'max:255'],
+            'metadata.winning_captain' => ['nullable', 'array'],
+            'metadata.winning_captain.minecraft_uuid' => ['required_with:metadata.winning_captain', 'uuid'],
+            'metadata.winning_captain.minecraft_username' => ['required_with:metadata.winning_captain', 'string', 'max:16'],
+            'metadata.winning_captain.discord_id' => ['nullable', 'string', 'max:20'],
             'metadata.winners' => [Rule::requiredIf(fn (): bool => $request->boolean('metadata.is_history') && $request->string('status')->toString() === 'published'), 'nullable', 'array', 'min:1', 'max:64'],
             'metadata.winners.*.minecraft_uuid' => ['required', 'uuid'],
             'metadata.winners.*.minecraft_username' => ['required', 'string', 'max:16'],
@@ -131,7 +135,33 @@ class EventAdminController extends Controller
     private function normalizeLinkedPlayers(array $data): array
     {
         if (! isset($data['metadata'])) {
-            return $data;
+            return $this->normalizeRichTextMentions($data);
+        }
+
+        if (isset($data['metadata']['winning_captain'])) {
+            $submittedCaptain = $data['metadata']['winning_captain'];
+            try {
+                $captain = RankedPlayer::query()
+                    ->where('is_verified', 1)
+                    ->where('minecraft_uuid', $submittedCaptain['minecraft_uuid'])
+                    ->first(['minecraft_uuid', 'minecraft_username', 'discord_id']);
+            } catch (Throwable) {
+                throw ValidationException::withMessages([
+                    'metadata.winning_captain' => 'No se pudo comprobar la cuenta verificada del capitán.',
+                ]);
+            }
+
+            if (! $captain) {
+                throw ValidationException::withMessages([
+                    'metadata.winning_captain' => 'El capitán debe tener una cuenta verificada.',
+                ]);
+            }
+
+            $data['metadata']['winning_captain'] = [
+                'minecraft_uuid' => $captain->minecraft_uuid,
+                'minecraft_username' => $captain->minecraft_username,
+                'discord_id' => $captain->discord_id,
+            ];
         }
 
         foreach (['winners', 'honorable_mentions'] as $key) {
@@ -167,6 +197,67 @@ class EventAdminController extends Controller
                     'discord_id' => $player->discord_id,
                 ];
             })->values()->all();
+        }
+
+        return $this->normalizeRichTextMentions($data);
+    }
+
+    private function normalizeRichTextMentions(array $data): array
+    {
+        $fields = ['excerpt', 'body'];
+        $uuids = collect();
+        foreach ($fields as $field) {
+            if (! isset($data[$field])) continue;
+            preg_match_all('/@\[[^\]]+\]\(player:([0-9a-f-]{36})\)/i', $data[$field], $matches);
+            $uuids = $uuids->merge($matches[1] ?? []);
+        }
+
+        if (isset($data['metadata'])) {
+            foreach (['rewards', 'instructions'] as $field) {
+                $value = $data['metadata'][$field] ?? null;
+                if (! is_string($value)) continue;
+                preg_match_all('/@\[[^\]]+\]\(player:([0-9a-f-]{36})\)/i', $value, $matches);
+                $uuids = $uuids->merge($matches[1] ?? []);
+            }
+        }
+
+        $uuids = $uuids->map(fn (string $uuid): string => strtolower($uuid))->unique()->values();
+        if ($uuids->isEmpty()) return $data;
+
+        try {
+            $players = RankedPlayer::query()
+                ->where('is_verified', 1)
+                ->whereIn('minecraft_uuid', $uuids)
+                ->get(['minecraft_uuid', 'minecraft_username'])
+                ->keyBy(fn ($player): string => strtolower($player->minecraft_uuid));
+        } catch (Throwable) {
+            throw ValidationException::withMessages([
+                'body' => 'No se pudieron comprobar las menciones de jugadores.',
+            ]);
+        }
+
+        if ($players->count() !== $uuids->count()) {
+            throw ValidationException::withMessages([
+                'body' => 'Todas las menciones deben pertenecer a cuentas verificadas.',
+            ]);
+        }
+
+        $normalize = fn (string $value): string => preg_replace_callback(
+            '/@\[[^\]]+\]\(player:([0-9a-f-]{36})\)/i',
+            function (array $match) use ($players): string {
+                $player = $players->get(strtolower($match[1]));
+                return '@['.$player->minecraft_username.'](player:'.$player->minecraft_uuid.')';
+            },
+            $value,
+        );
+
+        foreach ($fields as $field) {
+            if (isset($data[$field])) $data[$field] = $normalize($data[$field]);
+        }
+        foreach (['rewards', 'instructions'] as $field) {
+            if (isset($data['metadata'][$field])) {
+                $data['metadata'][$field] = $normalize($data['metadata'][$field]);
+            }
         }
 
         return $data;
