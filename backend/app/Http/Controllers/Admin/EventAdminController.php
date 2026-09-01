@@ -70,6 +70,10 @@ class EventAdminController extends Controller
             'metadata.format' => ['nullable', 'string', 'max:120'],
             'metadata.slots' => ['nullable', 'string', 'max:80'],
             'metadata.prize' => ['nullable', 'string', 'max:120'],
+            'metadata.is_history' => ['nullable', 'boolean'],
+            'metadata.champion' => ['nullable', 'string', 'max:255'],
+            'metadata.runner_up' => ['nullable', 'string', 'max:255'],
+            'metadata.content_format' => ['nullable', Rule::in(['keke-markdown-v1'])],
             'published_at' => ['nullable', 'date'],
         ]);
     }

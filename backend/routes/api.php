@@ -14,6 +14,7 @@ Route::get('/health', HealthController::class);
 Route::get('/news', [PublicContentController::class, 'news']);
 Route::get('/rules', [PublicContentController::class, 'rules']);
 Route::get('/events', [PublicContentController::class, 'events']);
+Route::get('/events/{content:slug}', [PublicContentController::class, 'event']);
 Route::get('/store/products', StoreController::class);
 Route::get('/staff', StaffController::class);
 

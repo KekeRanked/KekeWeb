@@ -28,7 +28,41 @@ class PublicContentController extends Controller
 
     public function events(Request $request): JsonResponse
     {
-        return $this->listing($request, ['event']);
+        $perPage = min(max($request->integer('per_page', 12), 1), 50);
+        $history = $request->boolean('history');
+
+        $items = Content::query()
+            ->published()
+            ->where('type', 'event')
+            ->where(function ($query) use ($history): void {
+                if ($history) {
+                    $query->where('metadata->is_history', true);
+                    return;
+                }
+
+                $query->where('metadata->is_history', false)
+                    ->orWhereNull('metadata->is_history');
+            })
+            ->with('author:id,name,discord_username,discord_avatar')
+            ->orderByDesc('is_pinned')
+            ->orderByDesc('published_at')
+            ->paginate($perPage);
+
+        return response()->json($items);
+    }
+
+    public function event(Content $content): JsonResponse
+    {
+        abort_unless(
+            $content->type === 'event'
+            && $content->status === 'published'
+            && (! $content->published_at || $content->published_at->isPast()),
+            404
+        );
+
+        return response()->json([
+            'data' => $content->load('author:id,name,discord_username,discord_avatar'),
+        ]);
     }
 
     private function listing(Request $request, array $types): JsonResponse

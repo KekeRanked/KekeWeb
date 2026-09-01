@@ -44,6 +44,44 @@ class FoundationTest extends TestCase
             ->assertJsonPath('data.0.slug', 'publicada');
     }
 
+    public function test_upcoming_and_historical_events_are_listed_separately(): void
+    {
+        Content::query()->create([
+            'type' => 'event',
+            'slug' => 'proximo-draft',
+            'title' => 'Próximo draft',
+            'body' => '**Información** del draft',
+            'status' => 'published',
+            'metadata' => ['type' => 'draft', 'is_history' => false],
+            'published_at' => now(),
+        ]);
+
+        Content::query()->create([
+            'type' => 'event',
+            'slug' => 'draft-finalizado',
+            'title' => 'Draft finalizado',
+            'body' => '# Resultado final',
+            'status' => 'published',
+            'metadata' => ['type' => 'draft', 'is_history' => true, 'champion' => 'Team One'],
+            'published_at' => now(),
+        ]);
+
+        $this->getJson('/api/events')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.slug', 'proximo-draft');
+
+        $this->getJson('/api/events?history=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.slug', 'draft-finalizado')
+            ->assertJsonPath('data.0.metadata.champion', 'Team One');
+
+        $this->getJson('/api/events/draft-finalizado')
+            ->assertOk()
+            ->assertJsonPath('data.body', '# Resultado final');
+    }
+
     public function test_three_ranked_servers_are_seeded(): void
     {
         $this->seed(DatabaseSeeder::class);
