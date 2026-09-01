@@ -7,6 +7,21 @@ type RichTextEditorProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "on
   onChange: (value: string) => void;
 };
 
+export function AutoTextarea({ value, onChange, ...props }: RichTextEditorProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  function resize() {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(textarea.scrollHeight, 92)}px`;
+  }
+
+  useLayoutEffect(resize, [value]);
+
+  return <textarea {...props} ref={textareaRef} value={value} onChange={(event) => onChange(event.target.value)} onInput={resize} />;
+}
+
 function inlineMarkdown(value: string): ReactNode[] {
   const parts = value.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, index) => part.startsWith("**") && part.endsWith("**")

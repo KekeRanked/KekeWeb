@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Minecraft avatar service uses dynamic UUID paths. */
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -19,9 +20,29 @@ type EventDetail = {
     prize?: string;
     is_history?: boolean;
     champion?: string;
+    winner_team?: string;
     runner_up?: string;
+    queue_opens?: string;
+    team_count?: number;
+    players_per_team?: number;
+    map_pool?: string[];
+    rewards?: string;
+    instructions?: string;
+    winners?: LinkedPlayer[];
+    honorable_mentions?: LinkedPlayer[];
+    honorable_mention_reason?: string;
   } | null;
 };
+
+type LinkedPlayer = {
+  minecraft_uuid: string;
+  minecraft_username: string;
+  discord_id?: string | null;
+};
+
+function PlayerRoster({ players }: { players: LinkedPlayer[] }) {
+  return <div className="event-player-roster">{players.map((player) => <Link href={`/players/${encodeURIComponent(player.minecraft_username)}`} className="event-linked-player" key={player.minecraft_uuid}><img src={`https://mc-heads.net/avatar/${player.minecraft_uuid}/52.png`} alt="" width={52} height={52} /><span><strong>{player.minecraft_username}</strong><small>CUENTA VERIFICADA</small></span><b>VER PERFIL →</b></Link>)}</div>;
+}
 
 export default function EventDetailClient({ slug }: { slug: string }) {
   const [event, setEvent] = useState<EventDetail | null>(null);
@@ -51,11 +72,13 @@ export default function EventDetailClient({ slug }: { slug: string }) {
           <div className="event-publication-facts">
             <div><small>FECHA</small><strong>{metadata.date ?? "Por definir"}</strong></div>
             <div><small>FORMATO</small><strong>{metadata.format ?? "Por definir"}</strong></div>
-            <div><small>{metadata.is_history ? "GANADOR" : "CUPO"}</small><strong>{metadata.is_history ? metadata.champion ?? "No indicado" : metadata.slots ?? "Por confirmar"}</strong></div>
+            <div><small>{metadata.is_history ? "EQUIPO GANADOR" : "CUPO"}</small><strong>{metadata.is_history ? metadata.winner_team ?? metadata.champion ?? "No indicado" : metadata.slots ?? "Por confirmar"}</strong></div>
             <div><small>PREMIO</small><strong>{metadata.prize ?? "Por anunciar"}</strong></div>
           </div>
-          {metadata.is_history && metadata.runner_up && <div className="event-result-banner"><small>FINAL</small><strong>{metadata.champion}</strong><span>sobre {metadata.runner_up}</span></div>}
-          <section className="event-publication-body"><p className="eyebrow"><span>INFORMACIÓN</span> DETALLES DEL EVENTO</p><RichText value={event.body} /></section>
+          {metadata.queue_opens && <div className="event-queue-notice"><small>DRAFT QUEUE</small><strong>APERTURA: {metadata.queue_opens}</strong></div>}
+          {metadata.is_history && <section className="event-winner-section"><p className="eyebrow"><span>RESULTADO FINAL</span> CAMPEONES DEL EVENTO</p><div className="event-winner-heading"><div><small>EQUIPO GANADOR</small><h2>{metadata.winner_team ?? metadata.champion ?? "Ganadores"}</h2>{metadata.runner_up && <span>Final contra {metadata.runner_up}</span>}</div><strong>{metadata.winners?.length ?? 0}<small> INTEGRANTES</small></strong></div>{metadata.winners?.length ? <PlayerRoster players={metadata.winners} /> : <p className="history-empty">Los integrantes no fueron vinculados en esta publicación antigua.</p>}{metadata.honorable_mentions?.length ? <div className="event-honorable"><div><small>MENCIÓN HONORÍFICA</small><strong>{metadata.honorable_mention_reason ?? "Participación destacada"}</strong></div><PlayerRoster players={metadata.honorable_mentions} /></div> : null}</section>}
+          {(metadata.team_count || metadata.players_per_team || metadata.map_pool?.length || metadata.rewards || metadata.instructions) && <section className="event-announcement-grid"><div className="event-announcement-block"><p className="eyebrow"><span>CARACTERÍSTICAS</span></p><dl><div><dt>Cantidad de equipos</dt><dd>{metadata.team_count ?? "—"}</dd></div><div><dt>Jugadores por equipo</dt><dd>{metadata.players_per_team ?? "—"}</dd></div><div><dt>Cupo total</dt><dd>{metadata.slots ?? "—"}</dd></div></dl></div>{metadata.map_pool?.length ? <div className="event-announcement-block"><p className="eyebrow"><span>MAP POOL</span></p><ul>{metadata.map_pool.map((map) => <li key={map}>{map}</li>)}</ul></div> : null}{metadata.rewards && <div className="event-announcement-block"><p className="eyebrow"><span>RECOMPENSAS</span></p><RichText value={metadata.rewards} /></div>}{metadata.instructions && <div className="event-announcement-block"><p className="eyebrow"><span>INDICACIONES</span></p><RichText value={metadata.instructions} /></div>}</section>}
+          <section className="event-publication-body"><p className="eyebrow"><span>INFORMACIÓN</span> DETALLES ADICIONALES</p><RichText value={event.body} /></section>
           <footer className="event-publication-author">Publicado por {event.author?.name ?? "Staff de KEKE"}</footer>
         </article>}
       </section>
