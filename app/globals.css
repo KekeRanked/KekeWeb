@@ -972,6 +972,93 @@ html[data-theme="light"] .theme-toggle-track i {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
+.home-events {
+  padding: 76px clamp(25px, 5vw, 72px);
+  background: var(--paper);
+}
+.home-events-heading {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(260px, 0.55fr) auto;
+  gap: 36px;
+  align-items: end;
+  margin-bottom: 34px;
+}
+.home-events-heading h2 {
+  margin: 10px 0 0;
+  font-size: clamp(38px, 5vw, 70px);
+  line-height: 0.9;
+}
+.home-events-heading > p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.home-events-heading > a {
+  padding: 15px 18px;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font: 750 9px/1 var(--font-geist-mono), monospace;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.home-events-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--line);
+}
+.home-event-group + .home-event-group { border-left: 1px solid var(--line); }
+.home-event-group > header {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  font: 750 9px/1 var(--font-geist-mono), monospace;
+  letter-spacing: 0.12em;
+}
+.home-event-group > header span { color: var(--amber); }
+.home-event-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  min-height: 116px;
+  padding: 14px 18px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  transition: background .18s ease;
+}
+.home-event-row:last-child { border-bottom: 0; }
+.home-event-row:hover { background: rgba(187, 120, 64, .08); }
+.home-event-row img,
+.home-event-letter {
+  width: 92px;
+  height: 82px;
+  object-fit: cover;
+  background: var(--ink-soft);
+}
+.home-event-letter {
+  display: grid;
+  place-items: center;
+  color: var(--amber);
+  font: 900 34px/1 Arial Black, sans-serif;
+}
+.home-event-row div { min-width: 0; }
+.home-event-row small {
+  color: var(--amber);
+  font: 750 8px/1 var(--font-geist-mono), monospace;
+  letter-spacing: .12em;
+}
+.home-event-row div > strong {
+  display: block;
+  margin: 9px 0 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+}
+.home-event-row p { margin: 0; color: var(--muted); font-size: 12px; }
+.home-event-row > b { font: 750 8px/1 var(--font-geist-mono), monospace; letter-spacing: .08em; }
+.home-events-empty { margin: 0; padding: 42px 20px; color: var(--muted); font: 700 9px/1.5 var(--font-geist-mono), monospace; letter-spacing: .1em; }
 .tournament-card {
   min-height: 570px;
   padding: 42px clamp(25px, 5vw, 72px);
@@ -979,6 +1066,21 @@ html[data-theme="light"] .theme-toggle-track i {
   overflow: hidden;
   background: #bb7840;
   color: var(--ink);
+}
+.tournament-card.has-event-cover {
+  background-position: center;
+  background-size: cover;
+  color: #fffdf8;
+}
+.tournament-card.has-event-cover .trophy-mark { display: none; }
+.tournament-card.has-event-cover .tournament-copy h2 {
+  max-width: 780px;
+  font-size: clamp(40px, 5vw, 76px);
+  line-height: .93;
+}
+.tournament-card.has-event-cover .prize strong {
+  max-width: 620px;
+  font-size: clamp(18px, 2vw, 26px);
 }
 .tournament-card::after {
   content: "";
@@ -6051,6 +6153,11 @@ footer > small {
   .rating-summary > div:nth-child(-n + 2) {
     border-bottom: 1px solid var(--line);
   }
+  .home-events-heading { grid-template-columns: 1fr auto; }
+  .home-events-heading > p { grid-column: 1 / -1; grid-row: 2; }
+  .home-event-row { grid-template-columns: 76px minmax(0, 1fr); }
+  .home-event-row img, .home-event-letter { width: 76px; height: 70px; }
+  .home-event-row > b { display: none; }
 }
 
 @media (max-width: 720px) {
@@ -6099,6 +6206,13 @@ footer > small {
   .hero-actions {
     flex-direction: column;
   }
+  .home-events { padding: 54px 20px; }
+  .home-events-heading { display: flex; align-items: stretch; flex-direction: column; gap: 18px; }
+  .home-events-heading > a { text-align: center; }
+  .home-events-grid { grid-template-columns: 1fr; }
+  .home-event-group + .home-event-group { border-left: 0; border-top: 1px solid var(--line); }
+  .home-event-row { grid-template-columns: 68px minmax(0, 1fr); padding: 12px; }
+  .home-event-row img, .home-event-letter { width: 68px; height: 64px; }
   .server-address {
     min-width: 0;
     width: 100%;

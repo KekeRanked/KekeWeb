@@ -11,13 +11,14 @@ type LeaderboardResponse = { data: RankedPlayer[] };
 type LiveMatch = { match_id: string; queue_key: string; map_name: string | null; phase: string; started_at: string | null };
 type MatchServer = { server_key: string; name: string; status: string; player_count: number; matches: LiveMatch[]; last_seen_at: string | null };
 type RecentMatch = { match_id: string; map_name: string; match_type: string; winner_team: string; end_time: string };
+type HomeEvent = { id: number; slug: string; title: string; excerpt: string | null; cover_image: string | null; metadata: { type?: string; date?: string; format?: string; is_history?: boolean; winner_team?: string; champion?: string; winning_captain?: { minecraft_username: string } } | null };
 function division(elo: number) { return rankForElo(elo); }
 function head(uuid: string, size: number) { return `https://mc-heads.net/avatar/${uuid}/${size}.png`; }
 function elapsed(startedAt: string | null, now = Date.now()) { if (!startedAt) return "—"; const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000)); return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
 
 export default function Home() {
-  const [copied, setCopied] = useState(false), [leaderboard, setLeaderboard] = useState<RankedPlayer[]>([]), [servers, setServers] = useState<MatchServer[]>([]), [latest, setLatest] = useState<RecentMatch | null>(null), [now, setNow] = useState(() => Date.now()), [dataError, setDataError] = useState(false);
-  useEffect(() => { const load = async () => { try { const [leaderboardResponse, serversResponse, matchesResponse] = await Promise.all([fetch("/api/ranked/leaderboards?per_page=4", { cache: "no-store" }), fetch("/api/ranked/servers", { cache: "no-store" }), fetch("/api/ranked/matches?per_page=1", { cache: "no-store" })]); if (!leaderboardResponse.ok || !serversResponse.ok || !matchesResponse.ok) throw new Error("API"); const leaderboardPayload = await leaderboardResponse.json() as LeaderboardResponse, serversPayload = await serversResponse.json() as { data: MatchServer[] }, matchesPayload = await matchesResponse.json() as { data: RecentMatch[] }; setLeaderboard(leaderboardPayload.data ?? []); setServers(serversPayload.data ?? []); setLatest(matchesPayload.data?.[0] ?? null); setDataError(false); } catch { setDataError(true); } }; void load(); const refresh = window.setInterval(() => void load(), 15000), clock = window.setInterval(() => setNow(Date.now()), 1000); return () => { window.clearInterval(refresh); window.clearInterval(clock); }; }, []);
+  const [copied, setCopied] = useState(false), [leaderboard, setLeaderboard] = useState<RankedPlayer[]>([]), [servers, setServers] = useState<MatchServer[]>([]), [latest, setLatest] = useState<RecentMatch | null>(null), [upcomingEvents, setUpcomingEvents] = useState<HomeEvent[]>([]), [completedEvents, setCompletedEvents] = useState<HomeEvent[]>([]), [eventsLoading, setEventsLoading] = useState(true), [now, setNow] = useState(() => Date.now()), [dataError, setDataError] = useState(false);
+  useEffect(() => { const load = async () => { try { const [leaderboardResponse, serversResponse, matchesResponse, upcomingResponse, completedResponse] = await Promise.all([fetch("/api/ranked/leaderboards?per_page=4", { cache: "no-store" }), fetch("/api/ranked/servers", { cache: "no-store" }), fetch("/api/ranked/matches?per_page=1", { cache: "no-store" }), fetch("/api/events?per_page=3", { cache: "no-store" }), fetch("/api/events?history=1&per_page=3", { cache: "no-store" })]); if (!leaderboardResponse.ok || !serversResponse.ok || !matchesResponse.ok) throw new Error("API"); const leaderboardPayload = await leaderboardResponse.json() as LeaderboardResponse, serversPayload = await serversResponse.json() as { data: MatchServer[] }, matchesPayload = await matchesResponse.json() as { data: RecentMatch[] }; setLeaderboard(leaderboardPayload.data ?? []); setServers(serversPayload.data ?? []); setLatest(matchesPayload.data?.[0] ?? null); if (upcomingResponse.ok) setUpcomingEvents(((await upcomingResponse.json()) as { data: HomeEvent[] }).data ?? []); if (completedResponse.ok) setCompletedEvents(((await completedResponse.json()) as { data: HomeEvent[] }).data ?? []); setDataError(false); } catch { setDataError(true); } finally { setEventsLoading(false); } }; void load(); const refresh = window.setInterval(() => void load(), 15000), clock = window.setInterval(() => setNow(Date.now()), 1000); return () => { window.clearInterval(refresh); window.clearInterval(clock); }; }, []);
   const onlineServers = servers.filter((server) => server.status !== "offline"), onlinePlayers = servers.reduce((total, server) => total + Number(server.player_count ?? 0), 0), topPlayer = leaderboard[0], liveMatches = servers.flatMap((server) => (server.matches ?? []).slice(0, 1).map((match) => ({ ...match, server: server.name }))).slice(0, 3), nextThreshold = topPlayer ? nextRankThreshold(Number(topPlayer.elo)) : null, progress = topPlayer ? rankProgress(Number(topPlayer.elo)) : 0;
 
   async function copyServerAddress() {
@@ -136,17 +137,10 @@ export default function Home() {
         </div>
       </section>
 
+      <HomeEvents upcoming={upcomingEvents} completed={completedEvents} loading={eventsLoading} />
+
       <section className="editorial-grid" id="torneos">
-        <article className="tournament-card">
-          <div className="card-kicker"><span>PRÓXIMO EVENTO</span><time>POR ANUNCIAR</time></div>
-          <div className="trophy-mark" aria-hidden="true">BETA</div>
-          <div className="tournament-copy">
-            <p>TORNEO OFICIAL</p>
-            <h2>PRIMER<br />TORNEO</h2>
-            <div className="prize"><small>DETALLES</small><strong>PRÓXIMAMENTE</strong></div>
-            <a className="tournament-action" href="/eventos">VER CALENDARIO DE EVENTOS</a>
-          </div>
-        </article>
+        <FeaturedEvent event={upcomingEvents[0] ?? completedEvents[0]} completed={!upcomingEvents.length && completedEvents.length > 0} loading={eventsLoading} />
 
         <article className="news-card">
           <div className="news-art" aria-hidden="true">
@@ -205,4 +199,26 @@ export default function Home() {
       <SiteFooter />
     </main>
   );
+}
+
+function HomeEvents({ upcoming, completed, loading }: { upcoming: HomeEvent[]; completed: HomeEvent[]; loading: boolean }) {
+  return <section className="home-events" aria-labelledby="home-events-title"><div className="home-events-heading"><div><p className="eyebrow"><span>AGENDA</span> DRAFTS Y TORNEOS</p><h2 id="home-events-title">EVENTOS EN KEKE</h2></div><p>Consulta lo que viene y revive los resultados de cada evento competitivo.</p><a href="/eventos">VER TODOS LOS EVENTOS</a></div>{loading ? <p className="home-events-empty">CARGANDO EVENTOS…</p> : <div className="home-events-grid"><HomeEventGroup title="POR REALIZAR" events={upcoming.slice(0, 2)} empty="NO HAY EVENTOS PRÓXIMOS" /><HomeEventGroup title="REALIZADOS" events={completed.slice(0, 2)} empty="AÚN NO HAY EVENTOS FINALIZADOS" completed /></div>}</section>;
+}
+
+function HomeEventGroup({ title, events, empty, completed = false }: { title: string; events: HomeEvent[]; empty: string; completed?: boolean }) {
+  return <div className="home-event-group"><header><span>{completed ? "ARCHIVO" : "CALENDARIO"}</span><strong>{title}</strong></header>{events.length ? events.map((event) => <a className="home-event-row" href={`/eventos/${encodeURIComponent(event.slug)}`} key={event.id}>{event.cover_image ? <img src={event.cover_image} alt="" /> : <span className="home-event-letter">{event.metadata?.type === "draft" ? "D" : "T"}</span>}<div><small>{event.metadata?.type === "draft" ? "DRAFT" : "TORNEO"} · {completed ? "FINALIZADO" : "PUBLICADO"}</small><strong>{event.title}</strong><p>{completed ? eventWinner(event) : event.metadata?.date ?? "Fecha por anunciar"}</p></div><b>VER DETALLES →</b></a>) : <p className="home-events-empty">{empty}</p>}</div>;
+}
+
+function FeaturedEvent({ event, completed, loading }: { event?: HomeEvent; completed: boolean; loading: boolean }) {
+  const title = event?.title ?? (loading ? "CARGANDO" : "SIN EVENTOS");
+  return <article className={`tournament-card${event?.cover_image ? " has-event-cover" : ""}`} style={event?.cover_image ? { backgroundImage: `linear-gradient(90deg, rgba(18,18,16,.9), rgba(18,18,16,.38)), url(${event.cover_image})` } : undefined}><div className="card-kicker"><span>{completed ? "ÚLTIMO EVENTO" : "PRÓXIMO EVENTO"}</span><time>{event ? completed ? "FINALIZADO" : event.metadata?.date ?? "POR ANUNCIAR" : "SIN PUBLICAR"}</time></div><div className="trophy-mark" aria-hidden="true">{event?.metadata?.type === "draft" ? "DRAFT" : "EVENT"}</div><div className="tournament-copy"><p>{event?.metadata?.type === "draft" ? "DRAFT OFICIAL" : "TORNEO OFICIAL"}</p><h2>{title}</h2><div className="prize"><small>{completed ? "RESULTADO" : "FECHA Y FORMATO"}</small><strong>{event ? completed ? eventWinner(event) : `${event.metadata?.date ?? "Por anunciar"}${event.metadata?.format ? ` · ${event.metadata.format}` : ""}` : "PUBLICA UN EVENTO DESDE EL PANEL"}</strong></div><a className="tournament-action" href={event ? `/eventos/${encodeURIComponent(event.slug)}` : "/eventos"}>{event ? "VER DETALLES DEL EVENTO" : "VER CALENDARIO DE EVENTOS"}</a></div></article>;
+}
+
+function eventWinner(event: HomeEvent) {
+  if (event.metadata?.winning_captain?.minecraft_username) return `Team de @${event.metadata.winning_captain.minecraft_username}`;
+  return plainEventText(event.metadata?.winner_team ?? event.metadata?.champion) || "Resultado disponible";
+}
+
+function plainEventText(value: string | null | undefined) {
+  return value?.replace(/@\[([^\]]+)\]\(player:[^)]+\)/g, "@$1").replace(/\*\*/g, "") ?? "";
 }
