@@ -1,4 +1,5 @@
 import { SiteFooter, SiteHeader } from "../components/site-chrome";
+import { MINECRAFT_VERSION_LABEL } from "../lib/server-info";
 
 const steps = [
   { number: "01", title: "PREPARA TU CUENTA", description: "Entra con tu cuenta de Minecraft y vincula Discord para que tu perfil, historial y sanciones estén asociados correctamente." },
@@ -31,7 +32,7 @@ export default function RankedsPage() {
 
       <section className="rankeds-section">
         <div className="rankeds-facts" aria-label="Información general de las rankeds">
-          <div><small>VERSIÓN</small><strong>JAVA 1.7X — 1.8</strong><span>Acceso desde el lobby</span></div>
+          <div><small>VERSIÓN</small><strong>{MINECRAFT_VERSION_LABEL}</strong><span>Acceso desde el lobby</span></div>
           <div><small>COLA PRINCIPAL</small><strong>5V5 CTW</strong><span>Diez jugadores · PGM</span></div>
           <div><small>PROGRESIÓN</small><strong>ELO DINÁMICO</strong><span>Cada resultado cuenta</span></div>
           <div><small>REGISTRO</small><strong>HISTORIAL WEB</strong><span>Partidas y estadísticas</span></div>

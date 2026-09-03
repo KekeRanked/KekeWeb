@@ -1,8 +1,10 @@
 "use client";
+/* eslint-disable @next/next/no-img-element, @next/next/no-html-link-for-pages -- Dynamic Minecraft avatars and direct internal navigation are intentional. */
 
 import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "./components/site-chrome";
 import { nextRankThreshold, rankForElo, rankProgress } from "./lib/ranks";
+import { MINECRAFT_VERSION_LABEL, SERVER_ADDRESS } from "./lib/server-info";
 
 type RankedPlayer = { rank_position: number; minecraft_uuid: string; minecraft_username: string; elo: number; wins: number; losses: number; is_in_placement: number };
 type LeaderboardResponse = { data: RankedPlayer[] };
@@ -19,7 +21,7 @@ export default function Home() {
   const onlineServers = servers.filter((server) => server.status !== "offline"), onlinePlayers = servers.reduce((total, server) => total + Number(server.player_count ?? 0), 0), topPlayer = leaderboard[0], liveMatches = servers.flatMap((server) => (server.matches ?? []).slice(0, 1).map((match) => ({ ...match, server: server.name }))).slice(0, 3), nextThreshold = topPlayer ? nextRankThreshold(Number(topPlayer.elo)) : null, progress = topPlayer ? rankProgress(Number(topPlayer.elo)) : 0;
 
   async function copyServerAddress() {
-    await navigator.clipboard.writeText("keke.live");
+    await navigator.clipboard.writeText(SERVER_ADDRESS);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
@@ -44,8 +46,8 @@ export default function Home() {
           <div className="hero-actions">
             <button className="server-address" type="button" onClick={copyServerAddress}>
               <span>
-                <small>JAVA 1.21+</small>
-                <strong>KEKE.LIVE</strong>
+                <small>{MINECRAFT_VERSION_LABEL}</small>
+                <strong>{SERVER_ADDRESS.toUpperCase()}</strong>
               </span>
               <span className="copy-icon">{copied ? "COPIADA" : "COPIAR"}</span>
             </button>
