@@ -113,7 +113,7 @@ export default function StaffPage() {
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, []);
-  const owner = members.find((member) => member.role === "owner"),
+  const owners = members.filter((member) => member.role === "owner"),
     sponsors = members.filter((member) => member.role === "sponsor");
   const departmentRoles = Array.from(
     new Set(
@@ -161,33 +161,66 @@ export default function StaffPage() {
       </section>
 
       <section className="public-staff-section">
-        <div className="staff-lead">
-          {owner ? (
-            <img
-              className="staff-lead-avatar"
-              src={head(owner.minecraft_uuid, 128)}
-              alt={`Cabeza de Minecraft de ${owner.minecraft_username}`}
-            />
-          ) : (
-            <div
-              className="staff-lead-avatar staff-avatar-loading"
-              aria-hidden="true"
-            />
-          )}
-          <div>
-            <small>OWNER · DIRECCIÓN DE LA NETWORK</small>
-            <h2>
-              {owner?.minecraft_username ??
-                (loading ? "CARGANDO…" : "DIRECCIÓN")}
-            </h2>
-            <p>
-              Responsable de la visión de KEKE, la infraestructura, la
-              coordinación general del equipo y las decisiones que definen el
-              futuro del servidor.
-            </p>
+        {owners.length > 1 ? (
+          <div className="staff-leads-container">
+            <div className="staff-leads-header">
+              <div>
+                <small>OWNERS · DIRECCIÓN DE LA NETWORK</small>
+                <h2>DIRECCIÓN & CREADORES</h2>
+                <p>
+                  Responsables de la visión de KEKE, la infraestructura, la
+                  coordinación general del equipo y las decisiones que definen el
+                  futuro del servidor.
+                </p>
+              </div>
+              <a href="/staff/contenido">PANEL DE CONTENIDO</a>
+            </div>
+            <div className="staff-leads-grid">
+              {owners.map((owner) => (
+                <article className="staff-lead-card" key={owner.minecraft_uuid}>
+                  <img
+                    className="staff-lead-card-avatar"
+                    src={head(owner.minecraft_uuid, 128)}
+                    alt={`Cabeza de Minecraft de ${owner.minecraft_username}`}
+                  />
+                  <div className="staff-lead-card-info">
+                    <small>OWNER / CREADOR</small>
+                    <h3>{owner.minecraft_username}</h3>
+                    <p>Dirección general y visión de la network.</p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
-          <a href="/staff/contenido">PANEL DE CONTENIDO</a>
-        </div>
+        ) : (
+          <div className="staff-lead">
+            {owners[0] ? (
+              <img
+                className="staff-lead-avatar"
+                src={head(owners[0].minecraft_uuid, 128)}
+                alt={`Cabeza de Minecraft de ${owners[0].minecraft_username}`}
+              />
+            ) : (
+              <div
+                className="staff-lead-avatar staff-avatar-loading"
+                aria-hidden="true"
+              />
+            )}
+            <div>
+              <small>OWNER · DIRECCIÓN DE LA NETWORK</small>
+              <h2>
+                {owners[0]?.minecraft_username ??
+                  (loading ? "CARGANDO…" : "DIRECCIÓN")}
+              </h2>
+              <p>
+                Responsable de la visión de KEKE, la infraestructura, la
+                coordinación general del equipo y las decisiones que definen el
+                futuro del servidor.
+              </p>
+            </div>
+            <a href="/staff/contenido">PANEL DE CONTENIDO</a>
+          </div>
+        )}
 
         {error && (
           <div className="staff-load-state" role="alert">

@@ -22,6 +22,8 @@ return new class extends Migration
         $now = now();
         DB::table('staff_members')->insert([
             ['minecraft_uuid' => '425ea9a7-82a8-40f6-a1dc-1e4d91546fae', 'role' => 'owner', 'is_sponsor' => false, 'display_order' => 10, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['minecraft_uuid' => '760f087c-3af0-402e-8a22-868a992ec9fa', 'role' => 'owner', 'is_sponsor' => false, 'display_order' => 11, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ['minecraft_uuid' => '42295b36-4884-4e35-8196-4d70ab1bddec', 'role' => 'owner', 'is_sponsor' => false, 'display_order' => 12, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['minecraft_uuid' => 'bb979ba8-472a-44b3-b498-7cd7aebfeef0', 'role' => 'manager', 'is_sponsor' => true, 'display_order' => 20, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['minecraft_uuid' => '9ae59653-9ad1-4341-8251-c84045f8fb03', 'role' => 'manager', 'is_sponsor' => true, 'display_order' => 30, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ['minecraft_uuid' => '1d6905df-ca93-45b5-ab57-ffb2c3d447b0', 'role' => 'manager', 'is_sponsor' => true, 'display_order' => 40, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
