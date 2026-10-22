@@ -108,6 +108,7 @@ class TournamentRegistrationTest extends TestCase
         $verified = User::factory()->create([
             'minecraft_uuid' => '44444444-4444-4444-8444-444444444444',
             'minecraft_username' => 'Searchable',
+            'discord_id' => '100000000000000004',
             'discord_username' => 'searchable.discord',
         ]);
         $this->verifiedPlayer($verified);
