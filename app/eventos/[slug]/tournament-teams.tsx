@@ -7,11 +7,16 @@ type TeamMember = {
   id: number;
   minecraft_uuid: string | null;
   minecraft_username: string;
+  discord_id: string | null;
+  discord_username: string | null;
   is_verified: boolean;
   role: "captain" | "member";
   position: number;
-  user?: { discord_username?: string | null } | null;
 };
+
+function headUrl(uuid: string, size: number) {
+  return `https://mc-heads.net/avatar/${uuid.replaceAll("-", "")}/${size}.png`;
+}
 
 type Team = {
   id: number;
@@ -56,7 +61,7 @@ export function TournamentTeams({ slug }: { slug: string }) {
       {!teams.length ? <div className="tournament-empty-state"><span>00</span><div><strong>TODAVÍA NO HAY EQUIPOS</strong><p>Los equipos aparecerán aquí cuando un capitán complete el registro.</p></div></div> : <div className="tournament-team-list">
         {teams.map((team, index) => <article key={team.id} className="tournament-team-card">
           <div className="tournament-team-title"><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{team.team_name}</h3><small>{team.team_tag ? `[${team.team_tag}] · ` : ""}{team.status === "approved" ? "CONFIRMADO" : "REGISTRO RECIBIDO"}</small></div></div>
-          <div className="tournament-team-roster">{team.members.map((member) => <div key={member.id}>{member.minecraft_uuid ? <img src={`https://mc-heads.net/avatar/${member.minecraft_uuid}/36.png`} alt={`Cabeza de ${member.minecraft_username}`} width={36} height={36} /> : <i aria-hidden="true">?</i>}<span><strong>{member.minecraft_username}</strong><small>{member.role === "captain" ? "CAPITÁN" : "JUGADOR"}{member.user?.discord_username ? ` · @${member.user.discord_username}` : ""}</small></span></div>)}</div>
+          <div className="tournament-team-roster">{team.members.map((member) => <div key={member.id}>{member.minecraft_uuid ? <img src={headUrl(member.minecraft_uuid, 36)} alt={`Cabeza de ${member.minecraft_username}`} width={36} height={36} /> : <i aria-hidden="true">?</i>}<span><strong>{member.minecraft_username}</strong><small>{member.role === "captain" ? "CAPITÁN" : "JUGADOR"}{member.discord_username ? ` · @${member.discord_username}` : member.discord_id ? ` · Discord ${member.discord_id}` : ""}</small></span></div>)}</div>
         </article>)}
       </div>}
     </section>

@@ -2508,14 +2508,36 @@ html[data-theme="light"] .theme-toggle-track i {
   flex-direction: column;
   gap: 5px;
 }
-.registration-member-field {
+.registration-member > .registration-member-field {
   position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.registration-member-field > label {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.registration-member-field > label > small {
+  color: #8b877e;
+  font: 700 7px/1 var(--font-geist-mono), monospace;
+  letter-spacing: 0.09em;
+}
+.registration-member-field > small {
+  grid-column: 1 / -1;
+}
+.registration-member-field input[readonly] {
+  color: #aaa69b;
+  background: #11110e;
+  cursor: default;
 }
 .registration-member-suggestions {
   position: absolute;
   z-index: 8;
   top: calc(100% + 8px);
   left: 0;
+  grid-column: 1 / -1;
   width: min(520px, calc(100vw - 80px));
   max-height: 230px;
   overflow-y: auto;
@@ -7702,6 +7724,9 @@ html[data-theme="light"] .rich-text strong {
   }
   .registration-member {
     grid-template-columns: 24px 42px minmax(0, 1fr);
+  }
+  .registration-member > .registration-member-field {
+    grid-template-columns: 1fr;
   }
   .registration-member > b,
   .registration-member > button { grid-column: 3; justify-self: start; }

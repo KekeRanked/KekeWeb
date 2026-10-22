@@ -41,12 +41,14 @@ test("server-renders the KEKE homepage", async () => {
 });
 
 test("keeps tournament registration wired to the public event and staff form", async () => {
-  const [eventDetail, registrationForm, teamsPanel, staffPage, migration] = await Promise.all([
+  const [eventDetail, registrationForm, teamsPanel, staffPage, migration, discordMigration, registrationController] = await Promise.all([
     readFile(new URL("../app/eventos/[slug]/event-detail-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/eventos/[slug]/tournament-registration-form.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/eventos/[slug]/tournament-teams.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/staff/contenido/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../backend/database/migrations/2026_10_13_000100_create_tournament_registrations_tables.php", import.meta.url), "utf8"),
+    readFile(new URL("../backend/database/migrations/2026_10_22_000200_add_discord_identity_to_tournament_registration_members.php", import.meta.url), "utf8"),
+    readFile(new URL("../backend/app/Http/Controllers/Api/TournamentRegistrationController.php", import.meta.url), "utf8"),
   ]);
 
   assert.match(eventDetail, /metadata\.type === "tournament"/);
@@ -57,8 +59,10 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(eventDetail, /<TournamentTeams slug=\{slug\}/);
   assert.match(registrationForm, /INSCRIBE A TU EQUIPO/);
   assert.match(registrationForm, /registration-players/);
-  assert.match(registrationForm, /MINECRAFT ·/);
-  assert.match(registrationForm, /ESCRIBE EL NICK Y SELECCIONA SU DISCORD/);
+  assert.match(registrationForm, /<small>MINECRAFT<\/small>/);
+  assert.match(registrationForm, /<small>DISCORD<\/small>/);
+  assert.match(registrationForm, /Se autocompleta al seleccionar/);
+  assert.match(registrationForm, /uuid\.replaceAll\("-", ""\)/);
   assert.match(registrationForm, /registration-member-suggestions/);
   assert.match(registrationForm, /mc-heads\.net\/avatar/);
   assert.doesNotMatch(registrationForm, /INGRESO MANUAL|>MANUAL</);
@@ -72,4 +76,8 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(teamsPanel, /\/teams/);
   assert.match(migration, /tournament_registrations/);
   assert.match(migration, /tournament_registration_members/);
+  assert.match(discordMigration, /discord_id/);
+  assert.match(discordMigration, /discord_username/);
+  assert.match(registrationController, /RankedPlayer::query\(\)/);
+  assert.match(registrationController, /whereNotNull\('discord_id'\)/);
 });

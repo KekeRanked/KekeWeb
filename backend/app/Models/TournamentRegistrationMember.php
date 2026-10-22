@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TournamentRegistrationMember extends Model
 {
     protected $fillable = [
-        'content_id', 'user_id', 'minecraft_uuid', 'minecraft_username',
+        'content_id', 'user_id', 'discord_id', 'discord_username', 'minecraft_uuid', 'minecraft_username',
         'is_verified', 'role', 'position',
     ];
 

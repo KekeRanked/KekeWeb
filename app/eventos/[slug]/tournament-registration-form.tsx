@@ -11,21 +11,23 @@ type SessionUser = {
 };
 
 type RegisteredPlayer = {
-  user_id: number;
+  user_id: number | null;
   minecraft_uuid: string;
   minecraft_username: string;
+  discord_id: string;
   discord_username: string | null;
 };
 
 type RegistrationMember = {
   id?: number;
   user_id: number | null;
+  discord_id: string | null;
+  discord_username: string | null;
   minecraft_uuid: string | null;
   minecraft_username: string;
   is_verified: boolean;
   role: "captain" | "member";
   position: number;
-  user?: { discord_username?: string | null } | null;
 };
 
 type Registration = {
@@ -46,13 +48,22 @@ type RegistrationMeta = {
 
 type Slot = {
   user_id: number | null;
+  discord_id: string | null;
   minecraft_uuid: string | null;
   minecraft_username: string;
   discord_username: string | null;
   is_verified: boolean;
 };
 
-const emptySlot = (): Slot => ({ user_id: null, minecraft_uuid: null, minecraft_username: "", discord_username: null, is_verified: false });
+const emptySlot = (): Slot => ({ user_id: null, discord_id: null, minecraft_uuid: null, minecraft_username: "", discord_username: null, is_verified: false });
+
+function headUrl(uuid: string, size: number) {
+  return `https://mc-heads.net/avatar/${uuid.replaceAll("-", "")}/${size}.png`;
+}
+
+function discordLabel(discordId: string | null, discordUsername: string | null) {
+  return discordUsername ? `@${discordUsername}` : discordId ? `ID ${discordId}` : "";
+}
 
 async function csrf() {
   const response = await fetch("/auth/csrf", { credentials: "include", headers: { Accept: "application/json" } });
@@ -105,9 +116,10 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
           ?.filter((member) => member.role !== "captain")
           .map((member) => ({
             user_id: member.user_id,
+            discord_id: member.discord_id,
             minecraft_uuid: member.minecraft_uuid,
             minecraft_username: member.minecraft_username,
-            discord_username: member.user?.discord_username ?? null,
+            discord_username: member.discord_username,
             is_verified: member.is_verified,
           })) ?? [];
         while (memberSlots.length < Math.max(0, nextMeta.players_per_team - 1)) memberSlots.push(emptySlot());
@@ -121,7 +133,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
       .catch((reason) => setFeedback(reason instanceof Error ? reason.message : "No se pudo cargar la inscripción."));
   }, [slug]);
 
-  const selectedUserIds = useMemo(() => new Set(slots.map((slot) => slot.user_id).filter(Boolean)), [slots]);
+  const selectedUuids = useMemo(() => new Set(slots.map((slot) => slot.minecraft_uuid).filter(Boolean)), [slots]);
   const activeQuery = activeSearchIndex === null ? "" : (slots[activeSearchIndex]?.minecraft_username ?? "").trim();
   const activeVerified = activeSearchIndex === null ? false : Boolean(slots[activeSearchIndex]?.is_verified);
 
@@ -159,6 +171,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
   function referencePlayer(index: number, player: RegisteredPlayer) {
     setSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? {
       user_id: player.user_id,
+      discord_id: player.discord_id,
       minecraft_uuid: player.minecraft_uuid,
       minecraft_username: player.minecraft_username,
       discord_username: player.discord_username,
@@ -167,12 +180,13 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
     setActiveSearchIndex(null);
     setResults([]);
     setSearching(false);
-    setFeedback(`${player.minecraft_username}${player.discord_username ? ` · @${player.discord_username}` : ""} fue vinculado al equipo.`);
+    setFeedback(`${player.minecraft_username} · ${discordLabel(player.discord_id, player.discord_username)} fue vinculado al equipo.`);
   }
 
   function setMemberQuery(index: number, minecraftUsername: string) {
     setSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? {
       user_id: null,
+      discord_id: null,
       minecraft_uuid: null,
       minecraft_username: minecraftUsername,
       discord_username: null,
@@ -187,7 +201,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFeedback("");
-    if (slots.some((slot) => !slot.user_id || !slot.is_verified)) {
+    if (slots.some((slot) => !slot.minecraft_uuid || !slot.discord_id || !slot.is_verified)) {
       setFeedback("Selecciona la cuenta vinculada de Minecraft y Discord para cada integrante.");
       return;
     }
@@ -202,7 +216,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
           team_name: teamName,
           team_tag: teamTag || null,
           notes: notes || null,
-          members: slots.map((slot) => ({ user_id: slot.user_id })),
+          members: slots.map((slot) => ({ minecraft_uuid: slot.minecraft_uuid })),
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -240,9 +254,34 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
           {registration && <div className={`registration-status is-${registration.status}`}><small>ESTADO DE TU INSCRIPCIÓN</small><strong>{registration.status === "approved" ? "APROBADA" : registration.status === "rejected" ? "REQUIERE CAMBIOS" : "PENDIENTE DE REVISIÓN"}</strong></div>}
           <div className="registration-team-fields"><label>Nombre del equipo<input required minLength={2} maxLength={80} value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Nombre del equipo" /></label><label>Tag corto <small>OPCIONAL</small><input minLength={2} maxLength={8} pattern="[A-Za-z0-9_-]+" value={teamTag} onChange={(event) => setTeamTag(event.target.value)} placeholder="KEKE" /></label></div>
 
-          <div className="registration-roster-heading"><div><strong>ALINEACIÓN</strong><span>{meta.players_per_team} jugadores exactos</span></div><small>{slots.filter((slot) => slot.minecraft_username).length + 1} / {meta.players_per_team} COMPLETOS</small></div>
-          <div className="registration-member is-captain"><span>01</span><img src={`https://mc-heads.net/avatar/${user.minecraft_uuid}/42.png`} alt={`Cabeza de ${user.minecraft_username}`} width={42} height={42} /><div><strong>{user.minecraft_username}</strong><small>{user.discord_username ? `MINECRAFT · @${user.discord_username}` : "CAPITÁN · CUENTA VERIFICADA"}</small></div><b>VINCULADO</b></div>
-          <div className="registration-member-list">{slots.map((slot, index) => <div className={`registration-member${slot.is_verified ? " is-verified" : ""}`} key={index}><span>{String(index + 2).padStart(2, "0")}</span>{slot.minecraft_uuid || slot.minecraft_username.length >= 2 ? <img src={`https://mc-heads.net/avatar/${encodeURIComponent(slot.minecraft_uuid || slot.minecraft_username)}/42.png`} alt={slot.minecraft_username ? `Cabeza de ${slot.minecraft_username}` : ""} width={42} height={42} /> : <i aria-hidden="true">?</i>}<div className="registration-member-field">{slot.is_verified ? <><strong>{slot.minecraft_username}</strong><small>MINECRAFT · {slot.discord_username ? `@${slot.discord_username}` : "DISCORD VINCULADO"}</small></> : <><input required autoComplete="off" maxLength={16} pattern="[A-Za-z0-9_]+" value={slot.minecraft_username} onFocus={() => { if (activeSearchIndex !== index) { setActiveSearchIndex(index); setResults([]); } }} onChange={(event) => setMemberQuery(index, event.target.value)} placeholder="Nick de Minecraft" aria-label={`Nick del integrante ${index + 2}`} /><small>{searching && activeSearchIndex === index ? "BUSCANDO CUENTA VINCULADA…" : "ESCRIBE EL NICK Y SELECCIONA SU DISCORD"}</small>{activeSearchIndex === index && activeQuery.length >= 2 && !searching && <div className="registration-member-suggestions">{results.length ? results.map((player) => <button type="button" key={player.user_id} disabled={selectedUserIds.has(player.user_id)} onClick={() => referencePlayer(index, player)}><img src={`https://mc-heads.net/avatar/${player.minecraft_uuid}/34.png`} alt={`Cabeza de ${player.minecraft_username}`} width={34} height={34} /><span><strong>{player.minecraft_username}</strong><small>{player.discord_username ? `Discord: @${player.discord_username}` : "Discord vinculado"}</small></span><b>{selectedUserIds.has(player.user_id) ? "YA ESTÁ EN EL EQUIPO" : "SELECCIONAR"}</b></button>) : <p>NO SE ENCONTRÓ UNA CUENTA VINCULADA</p>}</div>}</>}</div>{slot.is_verified ? <button type="button" onClick={() => setMemberQuery(index, "")}>CAMBIAR</button> : <b>POR VINCULAR</b>}</div>)}</div>
+          <div className="registration-roster-heading"><div><strong>ALINEACIÓN</strong><span>{meta.players_per_team} jugadores exactos</span></div><small>{slots.filter((slot) => slot.is_verified).length + 1} / {meta.players_per_team} VINCULADOS</small></div>
+          <div className="registration-member is-captain">
+            <span>01</span>
+            <img src={headUrl(user.minecraft_uuid, 42)} alt={`Cabeza de ${user.minecraft_username}`} width={42} height={42} />
+            <div><strong>{user.minecraft_username}</strong><small>{user.discord_username ? `DISCORD · @${user.discord_username}` : "CAPITÁN · CUENTA VERIFICADA"}</small></div>
+            <b>VINCULADO</b>
+          </div>
+          <div className="registration-member-list">{slots.map((slot, index) => {
+            const linkedDiscord = discordLabel(slot.discord_id, slot.discord_username);
+            return <div className={`registration-member${slot.is_verified ? " is-verified" : ""}`} key={index}>
+              <span>{String(index + 2).padStart(2, "0")}</span>
+              {slot.minecraft_uuid ? <img src={headUrl(slot.minecraft_uuid, 42)} alt={`Cabeza de ${slot.minecraft_username}`} width={42} height={42} /> : <i aria-hidden="true">?</i>}
+              <div className="registration-member-field">
+                <label><small>MINECRAFT</small><input required autoComplete="off" maxLength={16} pattern="[A-Za-z0-9_]+" value={slot.minecraft_username} onFocus={() => { if (activeSearchIndex !== index && !slot.is_verified) { setActiveSearchIndex(index); setResults([]); } }} onChange={(event) => setMemberQuery(index, event.target.value)} placeholder="Nick de Minecraft" aria-label={`Nick del integrante ${index + 2}`} /></label>
+                <label><small>DISCORD</small><input readOnly value={linkedDiscord} placeholder="Se autocompleta al seleccionar" aria-label={`Discord del integrante ${index + 2}`} /></label>
+                {!slot.is_verified && <small>{searching && activeSearchIndex === index ? "BUSCANDO EN RANKEDMINECRAFT…" : "SELECCIONA EL RESULTADO PARA VINCULAR AMBAS CUENTAS"}</small>}
+                {activeSearchIndex === index && activeQuery.length >= 2 && !searching && <div className="registration-member-suggestions">{results.length ? results.map((player) => {
+                  const alreadySelected = selectedUuids.has(player.minecraft_uuid);
+                  return <button type="button" key={player.minecraft_uuid} disabled={alreadySelected} onClick={() => referencePlayer(index, player)}>
+                    <img src={headUrl(player.minecraft_uuid, 34)} alt={`Cabeza de ${player.minecraft_username}`} width={34} height={34} />
+                    <span><strong>{player.minecraft_username}</strong><small>Discord: {discordLabel(player.discord_id, player.discord_username)}</small></span>
+                    <b>{alreadySelected ? "YA ESTÁ EN EL EQUIPO" : "SELECCIONAR"}</b>
+                  </button>;
+                }) : <p>NO SE ENCONTRÓ UN JUGADOR VERIFICADO CON DISCORD VINCULADO</p>}</div>}
+              </div>
+              {slot.is_verified ? <button type="button" onClick={() => setMemberQuery(index, "")}>CAMBIAR</button> : <b>POR VINCULAR</b>}
+            </div>;
+          })}</div>
 
           <label className="registration-notes">Notas para el staff <small>OPCIONAL</small><textarea maxLength={1000} rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Disponibilidad, suplentes u otra información relevante…" /></label>
           {feedback && <p className="registration-feedback" role="status">{feedback}</p>}
