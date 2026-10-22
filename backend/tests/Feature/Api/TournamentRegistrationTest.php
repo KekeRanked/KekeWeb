@@ -123,11 +123,15 @@ class TournamentRegistrationTest extends TestCase
             ->getJson("/api/events/{$event->slug}/registration-players?q=Search")
             ->assertOk()
             ->assertJsonCount(2, 'data')
-            ->assertJsonPath('data.0.minecraft_username', 'Searchable')
-            ->assertJsonPath('data.0.discord_username', 'searchable.discord')
-            ->assertJsonPath('data.1.minecraft_username', 'SearchPluginOnly')
-            ->assertJsonPath('data.1.discord_id', '100000000000000005')
-            ->assertJsonPath('data.1.user_id', null);
+            ->assertJsonFragment([
+                'minecraft_username' => 'Searchable',
+                'discord_username' => 'searchable.discord',
+            ])
+            ->assertJsonFragment([
+                'minecraft_username' => 'SearchPluginOnly',
+                'discord_id' => '100000000000000005',
+                'user_id' => null,
+            ]);
     }
 
     public function test_public_can_list_registered_teams_without_private_notes(): void
