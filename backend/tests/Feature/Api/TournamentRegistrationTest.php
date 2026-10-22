@@ -49,6 +49,7 @@ class TournamentRegistrationTest extends TestCase
             'minecraft_uuid' => '22222222-2222-4222-8222-222222222222',
             'minecraft_username' => 'LinkedMate',
             'discord_id' => '100000000000000002',
+            'discord_username' => 'linked.mate',
         ]);
         $secondTeammate = User::factory()->create([
             'minecraft_uuid' => '77777777-7777-4777-8777-777777777777',
@@ -94,7 +95,7 @@ class TournamentRegistrationTest extends TestCase
 
         $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Incomplete Team',
-            'members' => [['minecraft_username' => 'OnlyOne']],
+            'members' => [],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('members');
     }
