@@ -35,7 +35,7 @@ class TournamentRegistrationTest extends TestCase
         });
     }
 
-    public function test_verified_captain_can_register_a_mixed_roster(): void
+    public function test_verified_captain_can_register_a_linked_roster(): void
     {
         $event = $this->tournament();
         $captain = User::factory()->create([
@@ -48,21 +48,29 @@ class TournamentRegistrationTest extends TestCase
             'minecraft_username' => 'LinkedMate',
             'discord_id' => '100000000000000002',
         ]);
+        $secondTeammate = User::factory()->create([
+            'minecraft_uuid' => '77777777-7777-4777-8777-777777777777',
+            'minecraft_username' => 'LinkedSecond',
+            'discord_id' => '100000000000000007',
+            'discord_username' => 'linked.second',
+        ]);
         $this->verifiedPlayer($captain);
         $this->verifiedPlayer($teammate);
+        $this->verifiedPlayer($secondTeammate);
 
         $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Team Cupcake',
             'team_tag' => 'CAKE',
             'members' => [
                 ['user_id' => $teammate->id],
-                ['minecraft_username' => 'ManualMate'],
+                ['user_id' => $secondTeammate->id],
             ],
         ])->assertCreated()
             ->assertJsonPath('data.team_name', 'Team Cupcake')
             ->assertJsonPath('data.members.0.role', 'captain')
             ->assertJsonPath('data.members.1.is_verified', true)
-            ->assertJsonPath('data.members.2.minecraft_username', 'ManualMate');
+            ->assertJsonPath('data.members.2.minecraft_username', 'LinkedSecond')
+            ->assertJsonPath('data.members.2.user.discord_username', 'linked.second');
 
         $this->assertDatabaseHas('tournament_registrations', [
             'content_id' => $event->id,
@@ -96,6 +104,7 @@ class TournamentRegistrationTest extends TestCase
         $verified = User::factory()->create([
             'minecraft_uuid' => '44444444-4444-4444-8444-444444444444',
             'minecraft_username' => 'Searchable',
+            'discord_username' => 'searchable.discord',
         ]);
         User::factory()->create([
             'minecraft_uuid' => '55555555-5555-4555-8555-555555555555',
@@ -107,7 +116,8 @@ class TournamentRegistrationTest extends TestCase
             ->getJson("/api/events/{$event->slug}/registration-players?q=Search")
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.minecraft_username', 'Searchable');
+            ->assertJsonPath('data.0.minecraft_username', 'Searchable')
+            ->assertJsonPath('data.0.discord_username', 'searchable.discord');
     }
 
     public function test_public_can_list_registered_teams_without_private_notes(): void
@@ -119,13 +129,27 @@ class TournamentRegistrationTest extends TestCase
             'discord_id' => '100000000000000006',
         ]);
         $this->verifiedPlayer($captain);
+        $firstMember = User::factory()->create([
+            'minecraft_uuid' => '88888888-8888-4888-8888-888888888888',
+            'minecraft_username' => 'PublicMateOne',
+            'discord_id' => '100000000000000008',
+            'discord_username' => 'public.one',
+        ]);
+        $secondMember = User::factory()->create([
+            'minecraft_uuid' => '99999999-9999-4999-8999-999999999999',
+            'minecraft_username' => 'PublicMateTwo',
+            'discord_id' => '100000000000000009',
+            'discord_username' => 'public.two',
+        ]);
+        $this->verifiedPlayer($firstMember);
+        $this->verifiedPlayer($secondMember);
 
         $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Visible Team',
             'notes' => 'Esta nota solo corresponde al staff.',
             'members' => [
-                ['minecraft_username' => 'PublicMateOne'],
-                ['minecraft_username' => 'PublicMateTwo'],
+                ['user_id' => $firstMember->id],
+                ['user_id' => $secondMember->id],
             ],
         ])->assertCreated();
 
@@ -133,6 +157,7 @@ class TournamentRegistrationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.team_name', 'Visible Team')
             ->assertJsonPath('data.0.members.0.role', 'captain')
+            ->assertJsonPath('data.0.members.1.user.discord_username', 'public.one')
             ->assertJsonMissing(['notes' => 'Esta nota solo corresponde al staff.'])
             ->assertJsonPath('meta.registered_teams', 1)
             ->assertJsonPath('meta.max_teams', 8);

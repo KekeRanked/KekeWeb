@@ -57,7 +57,11 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(eventDetail, /<TournamentTeams slug=\{slug\}/);
   assert.match(registrationForm, /INSCRIBE A TU EQUIPO/);
   assert.match(registrationForm, /registration-players/);
-  assert.match(registrationForm, /CUENTA REGISTRADA Y VERIFICADA/);
+  assert.match(registrationForm, /MINECRAFT ·/);
+  assert.match(registrationForm, /ESCRIBE EL NICK Y SELECCIONA SU DISCORD/);
+  assert.match(registrationForm, /registration-member-suggestions/);
+  assert.match(registrationForm, /mc-heads\.net\/avatar/);
+  assert.doesNotMatch(registrationForm, /INGRESO MANUAL|>MANUAL</);
   assert.match(staffPage, /registration_open/);
   assert.match(staffPage, /Abrir registro al publicar/);
   assert.match(staffPage, /CONFIGURACIÓN DEL DRAFT/);

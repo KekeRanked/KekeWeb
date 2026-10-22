@@ -24,7 +24,7 @@ class TournamentRegistrationController extends Controller
         $registration = TournamentRegistration::query()
             ->where('content_id', $content->id)
             ->where('captain_id', $user->id)
-            ->with('members')
+            ->with('members.user:id,discord_username')
             ->first();
 
         return response()->json([
@@ -43,6 +43,7 @@ class TournamentRegistrationController extends Controller
 
         $users = User::query()
             ->whereNotNull('minecraft_uuid')
+            ->whereNotNull('discord_username')
             ->where(function ($query) use ($term): void {
                 $query->where('minecraft_username', 'like', "%{$term}%")
                     ->orWhere('discord_username', 'like', "%{$term}%")
@@ -85,11 +86,9 @@ class TournamentRegistrationController extends Controller
             'team_tag' => ['nullable', 'string', 'min:2', 'max:8', 'regex:/^[A-Za-z0-9_-]+$/'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'members' => ['required', 'array'],
-            'members.*.user_id' => ['nullable', 'integer', 'exists:users,id'],
-            'members.*.minecraft_username' => ['required_without:members.*.user_id', 'nullable', 'string', 'min:2', 'max:16', 'regex:/^[A-Za-z0-9_]+$/'],
+            'members.*.user_id' => ['required', 'integer', 'exists:users,id'],
         ], [
             'team_tag.regex' => 'La etiqueta solo puede contener letras, números, guion o guion bajo.',
-            'members.*.minecraft_username.regex' => 'Los nombres de Minecraft solo pueden contener letras, números y guion bajo.',
         ]);
 
         $teamSize = (int) data_get($content->metadata, 'players_per_team', 0);
@@ -113,6 +112,9 @@ class TournamentRegistrationController extends Controller
 
         $verifiedByUser = collect();
         foreach ($referencedUsers as $referencedUser) {
+            if (! $referencedUser->discord_username) {
+                throw ValidationException::withMessages(['members' => 'Todos los integrantes deben tener una cuenta de Discord vinculada.']);
+            }
             $player = $this->verifiedPlayerFor($referencedUser);
             if (! $player) {
                 throw ValidationException::withMessages(['members' => 'Todas las cuentas vinculadas deben seguir registradas y verificadas.']);
@@ -135,8 +137,8 @@ class TournamentRegistrationController extends Controller
             $members->push([
                 'user_id' => $referenced ? $referenced->id : null,
                 'minecraft_uuid' => $verifiedPlayer ? $verifiedPlayer->minecraft_uuid : null,
-                'minecraft_username' => $verifiedPlayer ? $verifiedPlayer->minecraft_username : $submitted['minecraft_username'],
-                'is_verified' => (bool) $verifiedPlayer,
+                'minecraft_username' => $verifiedPlayer->minecraft_username,
+                'is_verified' => true,
                 'role' => 'member',
                 'position' => $index + 2,
             ]);
@@ -172,7 +174,7 @@ class TournamentRegistrationController extends Controller
                     $registration->members()->create($member + ['content_id' => $content->id]);
                 }
 
-                return $registration->load('members');
+                return $registration->load('members.user:id,discord_username');
             });
         } catch (QueryException $exception) {
             throw ValidationException::withMessages(['members' => 'El nombre del equipo o uno de sus jugadores ya está inscrito en este torneo.']);

@@ -1,10 +1,11 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Minecraft avatar service uses dynamic UUID paths. */
 
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type SessionUser = {
   name: string;
+  discord_username: string | null;
   minecraft_uuid: string | null;
   minecraft_username: string | null;
 };
@@ -24,6 +25,7 @@ type RegistrationMember = {
   is_verified: boolean;
   role: "captain" | "member";
   position: number;
+  user?: { discord_username?: string | null } | null;
 };
 
 type Registration = {
@@ -46,10 +48,11 @@ type Slot = {
   user_id: number | null;
   minecraft_uuid: string | null;
   minecraft_username: string;
+  discord_username: string | null;
   is_verified: boolean;
 };
 
-const emptySlot = (): Slot => ({ user_id: null, minecraft_uuid: null, minecraft_username: "", is_verified: false });
+const emptySlot = (): Slot => ({ user_id: null, minecraft_uuid: null, minecraft_username: "", discord_username: null, is_verified: false });
 
 async function csrf() {
   const response = await fetch("/auth/csrf", { credentials: "include", headers: { Accept: "application/json" } });
@@ -73,7 +76,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
   const [teamTag, setTeamTag] = useState("");
   const [notes, setNotes] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [query, setQuery] = useState("");
+  const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(null);
   const [results, setResults] = useState<RegisteredPlayer[]>([]);
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -104,6 +107,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
             user_id: member.user_id,
             minecraft_uuid: member.minecraft_uuid,
             minecraft_username: member.minecraft_username,
+            discord_username: member.user?.discord_username ?? null,
             is_verified: member.is_verified,
           })) ?? [];
         while (memberSlots.length < Math.max(0, nextMeta.players_per_team - 1)) memberSlots.push(emptySlot());
@@ -118,67 +122,73 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
   }, [slug]);
 
   const selectedUserIds = useMemo(() => new Set(slots.map((slot) => slot.user_id).filter(Boolean)), [slots]);
+  const activeQuery = activeSearchIndex === null ? "" : (slots[activeSearchIndex]?.minecraft_username ?? "").trim();
+  const activeVerified = activeSearchIndex === null ? false : Boolean(slots[activeSearchIndex]?.is_verified);
 
-  async function searchPlayers() {
-    const term = query.trim();
-    if (term.length < 2) {
-      setFeedback("Escribe al menos 2 caracteres para buscar.");
+  useEffect(() => {
+    if (activeSearchIndex === null || activeQuery.length < 2 || activeVerified) {
       return;
     }
-    setSearching(true);
-    setFeedback("");
-    try {
-      const response = await fetch(`/api/events/${encodeURIComponent(slug)}/registration-players?q=${encodeURIComponent(term)}`, {
-        credentials: "include",
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(errorMessage(payload, "No se pudo buscar jugadores."));
-      setResults(payload.data ?? []);
-      if (!(payload.data ?? []).length) setFeedback("No hay cuentas registradas y verificadas con esa búsqueda.");
-    } catch (reason) {
-      setFeedback(reason instanceof Error ? reason.message : "No se pudo buscar jugadores.");
-    } finally {
-      setSearching(false);
-    }
-  }
 
-  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    void searchPlayers();
-  }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setSearching(true);
+      try {
+        const response = await fetch(`/api/events/${encodeURIComponent(slug)}/registration-players?q=${encodeURIComponent(activeQuery)}`, {
+          credentials: "include",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(errorMessage(payload, "No se pudo buscar jugadores."));
+        setResults(payload.data ?? []);
+      } catch (reason) {
+        if (!controller.signal.aborted) setFeedback(reason instanceof Error ? reason.message : "No se pudo buscar jugadores.");
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 250);
 
-  function referencePlayer(player: RegisteredPlayer) {
-    const index = slots.findIndex((slot) => !slot.minecraft_username);
-    if (index < 0) {
-      setFeedback("No quedan plazas vacías. Libera una plaza antes de vincular otra cuenta.");
-      return;
-    }
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [activeQuery, activeSearchIndex, activeVerified, slug]);
+
+  function referencePlayer(index: number, player: RegisteredPlayer) {
     setSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? {
       user_id: player.user_id,
       minecraft_uuid: player.minecraft_uuid,
       minecraft_username: player.minecraft_username,
+      discord_username: player.discord_username,
       is_verified: true,
     } : slot));
-    setFeedback(`${player.minecraft_username} fue vinculado al equipo.`);
+    setActiveSearchIndex(null);
+    setResults([]);
+    setSearching(false);
+    setFeedback(`${player.minecraft_username}${player.discord_username ? ` · @${player.discord_username}` : ""} fue vinculado al equipo.`);
   }
 
-  function setManualMember(index: number, minecraftUsername: string) {
+  function setMemberQuery(index: number, minecraftUsername: string) {
     setSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? {
       user_id: null,
       minecraft_uuid: null,
       minecraft_username: minecraftUsername,
+      discord_username: null,
       is_verified: false,
     } : slot));
+    setActiveSearchIndex(index);
+    setResults([]);
+    setSearching(minecraftUsername.trim().length >= 2);
+    setFeedback("");
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFeedback("");
-    if (slots.some((slot) => !slot.minecraft_username.trim())) {
-      setFeedback("Completa todos los integrantes antes de enviar la inscripción.");
+    if (slots.some((slot) => !slot.user_id || !slot.is_verified)) {
+      setFeedback("Selecciona la cuenta vinculada de Minecraft y Discord para cada integrante.");
       return;
     }
     setSaving(true);
@@ -192,9 +202,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
           team_name: teamName,
           team_tag: teamTag || null,
           notes: notes || null,
-          members: slots.map((slot) => slot.user_id
-            ? { user_id: slot.user_id }
-            : { minecraft_username: slot.minecraft_username.trim() }),
+          members: slots.map((slot) => ({ user_id: slot.user_id })),
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -223,7 +231,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
   return (
     <section className="tournament-registration">
       <header className="registration-heading">
-        <div><p className="eyebrow"><span>INSCRIPCIONES</span> EQUIPOS</p><h2>{registration ? "TU EQUIPO" : "INSCRIBE A TU EQUIPO"}</h2><p>El capitán cuenta como una plaza. Vincula jugadores registrados y verificados o escribe su nick manualmente.</p></div>
+        <div><p className="eyebrow"><span>INSCRIPCIONES</span> EQUIPOS</p><h2>{registration ? "TU EQUIPO" : "INSCRIBE A TU EQUIPO"}</h2><p>El capitán cuenta como una plaza. Escribe el nick de Minecraft de cada integrante y selecciona su cuenta de Discord vinculada.</p></div>
         <div className="registration-capacity"><small>EQUIPOS INSCRITOS</small><strong>{meta.registered_teams}{meta.max_teams ? ` / ${meta.max_teams}` : ""}</strong><span>{meta.spots_left === null ? "Cupo abierto" : `${meta.spots_left} plazas disponibles`}</span></div>
       </header>
 
@@ -233,10 +241,8 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
           <div className="registration-team-fields"><label>Nombre del equipo<input required minLength={2} maxLength={80} value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Nombre del equipo" /></label><label>Tag corto <small>OPCIONAL</small><input minLength={2} maxLength={8} pattern="[A-Za-z0-9_-]+" value={teamTag} onChange={(event) => setTeamTag(event.target.value)} placeholder="KEKE" /></label></div>
 
           <div className="registration-roster-heading"><div><strong>ALINEACIÓN</strong><span>{meta.players_per_team} jugadores exactos</span></div><small>{slots.filter((slot) => slot.minecraft_username).length + 1} / {meta.players_per_team} COMPLETOS</small></div>
-          <div className="registration-member is-captain"><span>01</span><img src={`https://mc-heads.net/avatar/${user.minecraft_uuid}/42.png`} alt="" width={42} height={42} /><div><strong>{user.minecraft_username}</strong><small>CAPITÁN · CUENTA VERIFICADA</small></div><b>VINCULADO</b></div>
-          <div className="registration-member-list">{slots.map((slot, index) => <div className={`registration-member${slot.is_verified ? " is-verified" : ""}`} key={index}><span>{String(index + 2).padStart(2, "0")}</span>{slot.is_verified && slot.minecraft_uuid ? <img src={`https://mc-heads.net/avatar/${slot.minecraft_uuid}/42.png`} alt="" width={42} height={42} /> : <i aria-hidden="true">?</i>}<div>{slot.is_verified ? <><strong>{slot.minecraft_username}</strong><small>CUENTA REGISTRADA Y VERIFICADA</small></> : <><input required maxLength={16} pattern="[A-Za-z0-9_]+" value={slot.minecraft_username} onChange={(event) => setManualMember(index, event.target.value)} placeholder="Nick de Minecraft" aria-label={`Nick del integrante ${index + 2}`} /><small>INGRESO MANUAL</small></>}</div>{slot.is_verified ? <button type="button" onClick={() => setManualMember(index, "")}>DESVINCULAR</button> : <b>MANUAL</b>}</div>)}</div>
-
-          <div className="registration-player-search"><label htmlFor="registration-player-search">Referenciar cuenta verificada</label><p>Busca entre usuarios que ya iniciaron sesión y tienen Minecraft verificado.</p><div><input id="registration-player-search" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Nick, Discord o UUID…" /><button type="button" onClick={() => void searchPlayers()} disabled={searching}>{searching ? "BUSCANDO…" : "BUSCAR"}</button></div>{results.length > 0 && <div className="registration-search-results">{results.map((player) => <div key={player.user_id}><img src={`https://mc-heads.net/avatar/${player.minecraft_uuid}/34.png`} alt="" width={34} height={34} /><div><strong>{player.minecraft_username}</strong><small>{player.discord_username ? `@${player.discord_username}` : "CUENTA VERIFICADA"}</small></div><button type="button" disabled={selectedUserIds.has(player.user_id)} onClick={() => referencePlayer(player)}>{selectedUserIds.has(player.user_id) ? "AÑADIDO" : "VINCULAR"}</button></div>)}</div>}</div>
+          <div className="registration-member is-captain"><span>01</span><img src={`https://mc-heads.net/avatar/${user.minecraft_uuid}/42.png`} alt={`Cabeza de ${user.minecraft_username}`} width={42} height={42} /><div><strong>{user.minecraft_username}</strong><small>{user.discord_username ? `MINECRAFT · @${user.discord_username}` : "CAPITÁN · CUENTA VERIFICADA"}</small></div><b>VINCULADO</b></div>
+          <div className="registration-member-list">{slots.map((slot, index) => <div className={`registration-member${slot.is_verified ? " is-verified" : ""}`} key={index}><span>{String(index + 2).padStart(2, "0")}</span>{slot.minecraft_uuid || slot.minecraft_username.length >= 2 ? <img src={`https://mc-heads.net/avatar/${encodeURIComponent(slot.minecraft_uuid || slot.minecraft_username)}/42.png`} alt={slot.minecraft_username ? `Cabeza de ${slot.minecraft_username}` : ""} width={42} height={42} /> : <i aria-hidden="true">?</i>}<div className="registration-member-field">{slot.is_verified ? <><strong>{slot.minecraft_username}</strong><small>MINECRAFT · {slot.discord_username ? `@${slot.discord_username}` : "DISCORD VINCULADO"}</small></> : <><input required autoComplete="off" maxLength={16} pattern="[A-Za-z0-9_]+" value={slot.minecraft_username} onFocus={() => { if (activeSearchIndex !== index) { setActiveSearchIndex(index); setResults([]); } }} onChange={(event) => setMemberQuery(index, event.target.value)} placeholder="Nick de Minecraft" aria-label={`Nick del integrante ${index + 2}`} /><small>{searching && activeSearchIndex === index ? "BUSCANDO CUENTA VINCULADA…" : "ESCRIBE EL NICK Y SELECCIONA SU DISCORD"}</small>{activeSearchIndex === index && activeQuery.length >= 2 && !searching && <div className="registration-member-suggestions">{results.length ? results.map((player) => <button type="button" key={player.user_id} disabled={selectedUserIds.has(player.user_id)} onClick={() => referencePlayer(index, player)}><img src={`https://mc-heads.net/avatar/${player.minecraft_uuid}/34.png`} alt={`Cabeza de ${player.minecraft_username}`} width={34} height={34} /><span><strong>{player.minecraft_username}</strong><small>{player.discord_username ? `Discord: @${player.discord_username}` : "Discord vinculado"}</small></span><b>{selectedUserIds.has(player.user_id) ? "YA ESTÁ EN EL EQUIPO" : "SELECCIONAR"}</b></button>) : <p>NO SE ENCONTRÓ UNA CUENTA VINCULADA</p>}</div>}</>}</div>{slot.is_verified ? <button type="button" onClick={() => setMemberQuery(index, "")}>CAMBIAR</button> : <b>POR VINCULAR</b>}</div>)}</div>
 
           <label className="registration-notes">Notas para el staff <small>OPCIONAL</small><textarea maxLength={1000} rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Disponibilidad, suplentes u otra información relevante…" /></label>
           {feedback && <p className="registration-feedback" role="status">{feedback}</p>}

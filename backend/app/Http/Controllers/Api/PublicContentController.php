@@ -92,7 +92,10 @@ class PublicContentController extends Controller
         $teams = TournamentRegistration::query()
             ->where('content_id', $content->id)
             ->whereIn('status', ['pending', 'approved'])
-            ->with('members:id,registration_id,minecraft_uuid,minecraft_username,is_verified,role,position')
+            ->with([
+                'members:id,registration_id,user_id,minecraft_uuid,minecraft_username,is_verified,role,position',
+                'members.user:id,discord_username',
+            ])
             ->oldest()
             ->get(['id', 'team_name', 'team_tag', 'status', 'created_at']);
 
