@@ -6,7 +6,6 @@ use App\Models\Content;
 use App\Models\Minecraft\RankedPlayer;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -18,7 +17,7 @@ class TournamentRegistrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->withoutMiddleware(ValidateCsrfToken::class);
+        $this->withoutMiddleware();
 
         config(['database.connections.minecraft_stats' => [
             'driver' => 'sqlite',
