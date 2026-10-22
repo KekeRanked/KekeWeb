@@ -10,10 +10,33 @@ import { VerifiedPlayer, VerifiedPlayerPicker } from "../../components/verified-
 type EventItem = {
   id: number;
   title: string;
+  excerpt?: string | null;
+  body?: string | null;
   status: string;
   cover_image?: string | null;
   author?: { name?: string };
-  metadata?: { type?: string; date?: string; is_history?: boolean } | null;
+  metadata?: {
+    type?: string;
+    date?: string;
+    is_history?: boolean;
+    queue_opens?: string | null;
+    registration_deadline?: string | null;
+    format?: string | null;
+    team_count?: number | null;
+    players_per_team?: number | null;
+    registration_open?: boolean;
+    map_pool?: string[];
+    prize?: string | null;
+    rewards?: string | null;
+    instructions?: string | null;
+    champion?: string | null;
+    winner_team?: string | null;
+    runner_up?: string | null;
+    winning_captain?: VerifiedPlayer | null;
+    winners?: VerifiedPlayer[];
+    honorable_mentions?: VerifiedPlayer[];
+    honorable_mention_reason?: string | null;
+  } | null;
 };
 
 async function csrf() {
@@ -29,6 +52,7 @@ function lines(value: string) {
 export default function StaffContentPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [type, setType] = useState("draft");
   const [publication, setPublication] = useState("upcoming");
   const [status, setStatus] = useState("draft");
@@ -81,6 +105,10 @@ export default function StaffContentPage() {
   }, []);
 
   function resetForm() {
+    setEditingId(null);
+    setType("draft");
+    setPublication("upcoming");
+    setStatus("draft");
     setTitle("");
     if (bannerPreview) URL.revokeObjectURL(bannerPreview);
     setBannerFile(null);
@@ -90,6 +118,10 @@ export default function StaffContentPage() {
     setBody("");
     setDate("");
     setQueueOpens("");
+    setFormat("5v5 CTW");
+    setTeamCount("4");
+    setPlayersPerTeam("6");
+    setRegistrationOpen(true);
     setRegistrationDeadline("");
     setMapPool("");
     setPrize("");
@@ -101,6 +133,55 @@ export default function StaffContentPage() {
     setWinners([]);
     setHonorableMentions([]);
     setHonorableReason("");
+  }
+
+  async function startEditing(id: number) {
+    setFeedback("Cargando evento…");
+    try {
+      const response = await fetch(`/api/admin/events/${id}`, {
+        credentials: "include",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "No se pudo abrir el evento.");
+
+      const item = payload.data as EventItem;
+      const metadata = item.metadata ?? {};
+      const nextType = metadata.type === "tournament" ? "tournament" : "draft";
+      setEditingId(item.id);
+      setType(nextType);
+      setPublication(metadata.is_history ? "history" : "upcoming");
+      setStatus(item.status === "published" ? "published" : "draft");
+      setTitle(item.title ?? "");
+      if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+      setBannerFile(null);
+      setBannerPreview("");
+      setCoverImage(item.cover_image ?? "");
+      setSummary(item.excerpt ?? "");
+      setBody(item.body ?? "");
+      setDate(metadata.date ?? "");
+      setQueueOpens(metadata.queue_opens ?? "");
+      setRegistrationDeadline(metadata.registration_deadline ?? "");
+      setFormat(metadata.format ?? (nextType === "tournament" ? "3v3 CTW" : "5v5 CTW"));
+      setTeamCount(String(metadata.team_count ?? 4));
+      setPlayersPerTeam(String(metadata.players_per_team ?? (nextType === "tournament" ? 3 : 6)));
+      setRegistrationOpen(metadata.registration_open ?? false);
+      setMapPool(Array.isArray(metadata.map_pool) ? metadata.map_pool.join("\n") : "");
+      setPrize(metadata.prize ?? "");
+      setRewards(metadata.rewards ?? "");
+      setInstructions(metadata.instructions ?? "");
+      setWinnerTeam(metadata.winner_team ?? metadata.champion ?? "");
+      setRunnerUp(metadata.runner_up ?? "");
+      setWinningCaptain(metadata.winning_captain ?? null);
+      setWinners(Array.isArray(metadata.winners) ? metadata.winners : []);
+      setHonorableMentions(Array.isArray(metadata.honorable_mentions) ? metadata.honorable_mentions : []);
+      setHonorableReason(metadata.honorable_mention_reason ?? "");
+      setFeedback(`Editando el evento #${item.id}.`);
+      document.getElementById("event-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (reason) {
+      setFeedback(reason instanceof Error ? reason.message : "No se pudo abrir el evento.");
+    }
   }
 
   function handleBannerChange(event: ChangeEvent<HTMLInputElement>) {
@@ -171,8 +252,8 @@ export default function StaffContentPage() {
         setCoverImage(uploadedCover);
         setBannerFile(null);
       }
-      const response = await fetch("/api/admin/events", {
-        method: "POST",
+      const response = await fetch(editingId ? `/api/admin/events/${editingId}` : "/api/admin/events", {
+        method: editingId ? "PUT" : "POST",
         credentials: "include",
         headers: { Accept: "application/json", "Content-Type": "application/json", "X-CSRF-TOKEN": token },
         body: JSON.stringify({
@@ -216,18 +297,21 @@ export default function StaffContentPage() {
         const validation = payload.errors ? Object.values(payload.errors).flat().join(" ") : null;
         throw new Error(validation || payload.message || "No se pudo guardar el evento.");
       }
-      setFeedback(status === "published"
-        ? publication === "history" ? "Evento publicado en el historial con sus ganadores vinculados." : "Evento publicado correctamente."
-        : "Borrador guardado correctamente.");
+      const wasEditing = editingId !== null;
       resetForm();
       await loadEvents();
+      setFeedback(wasEditing
+        ? "Evento actualizado correctamente."
+        : status === "published"
+          ? publication === "history" ? "Evento publicado en el historial con sus ganadores vinculados." : "Evento publicado correctamente."
+          : "Borrador guardado correctamente.");
     } catch (reason) {
       setFeedback(reason instanceof Error ? reason.message : "No se pudo guardar el evento.");
     }
   }
 
   const submitLabel = status === "draft"
-    ? "GUARDAR BORRADOR"
+    ? editingId ? "GUARDAR CAMBIOS" : "GUARDAR BORRADOR"
     : publication === "history" ? "PUBLICAR EN HISTORIAL" : type === "tournament" ? "PUBLICAR TORNEO" : "PUBLICAR DRAFT";
   const totalPlayers = Number(teamCount) * Number(playersPerTeam);
 
@@ -244,7 +328,7 @@ export default function StaffContentPage() {
           {allowed === null && <p className="history-empty">VERIFICANDO SESIÓN…</p>}
           {allowed === false && <div className="staff-load-state" role="alert">Necesitas iniciar sesión con una cuenta de Staff autorizada para administrar eventos.</div>}
           {allowed && <>
-            <div className="staff-section-heading"><div><small>NUEVA PUBLICACIÓN</small><h2>CREAR EVENTO</h2></div><span>{type === "tournament" ? "Formulario simple para abrir un torneo" : "Publicación y configuración del Draft"}</span></div>
+            <div className="staff-section-heading" id="event-editor"><div><small>{editingId ? `EDITANDO EVENTO #${editingId}` : "NUEVA PUBLICACIÓN"}</small><h2>{editingId ? "EDITAR EVENTO" : "CREAR EVENTO"}</h2></div><span>{type === "tournament" ? "Formulario simple para abrir un torneo" : "Publicación y configuración del Draft"}</span></div>
             <form className="content-form draft-publication-form" onSubmit={handleSubmit}>
               <section className="publication-form-section"><header><span>01</span><div><strong>PUBLICACIÓN</strong><small>El formulario se adapta al tipo de evento</small></div></header><div className="form-row"><label>Tipo<select value={type} onChange={(event) => changeEventType(event.target.value)}><option value="draft">Draft</option><option value="tournament">Torneo</option></select></label><label>Estado<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="draft">Borrador</option><option value="published">Publicado</option></select></label></div><div className="event-type-explainer"><strong>{type === "tournament" ? "TORNEO" : "DRAFT"}</strong><span>{type === "tournament" ? "Equipos prearmados, inscripción por capitán, límite de equipos y cuadro competitivo." : "Jugadores en cola, apertura de Draft Queue y equipos formados durante el evento."}</span></div><label>Destino<select value={publication} onChange={(event) => setPublication(event.target.value)}><option value="upcoming">Agenda — próximo o en curso</option><option value="history">Historial — evento pasado/finalizado</option></select><small className="field-help">Los eventos pasados aparecen en “Ver eventos finalizados”.</small></label></section>
 
@@ -254,10 +338,10 @@ export default function StaffContentPage() {
 
               {publication === "history" && <section className="publication-form-section history-publication-section"><header><span>04</span><div><strong>RESULTADO FINAL</strong><small>Equipo ganador e integrantes vinculados a cuentas verificadas</small></div></header><div className={type === "tournament" ? "form-row winner-result-fields" : "winner-result-fields"}><div className="form-field"><label htmlFor="winner-team">Nombre del equipo ganador</label><RichTextEditor id="winner-team" required rows={2} value={winnerTeam} onChange={setWinnerTeam} mentions={winningCaptain ? [winningCaptain] : []} placeholder="Team de @capitán" />{winningCaptain && <small className="field-help">Pulsa “@ {winningCaptain.minecraft_username}” para vincular al capitán en el nombre del equipo.</small>}</div>{type === "tournament" && <label>Equipo finalista<input value={runnerUp} onChange={(event) => setRunnerUp(event.target.value)} placeholder="Subcampeón (opcional)" /></label>}</div><VerifiedPlayerPicker title="Integrantes ganadores" description="Busca y añade a todos los miembros del equipo ganador" selected={winners} onChange={setWinners} /><VerifiedPlayerPicker title="Menciones honoríficas" description="Opcional: selecciona uno o varios jugadores destacados" selected={honorableMentions} onChange={setHonorableMentions} />{honorableMentions.length > 0 && <label>Motivo de la mención<input value={honorableReason} onChange={(event) => setHonorableReason(event.target.value)} placeholder="Defensa destacada, MVP, mejor capitán…" /></label>}</section>}
 
-              <div className="form-actions"><button className="button-primary" type="submit">{submitLabel}</button></div>
+              <div className="form-actions"><button className="button-primary" type="submit">{submitLabel}</button>{editingId && <button className="button-muted" type="button" onClick={() => { resetForm(); setFeedback("Edición cancelada."); }}>CANCELAR EDICIÓN</button>}</div>
               {feedback && <p className="form-feedback" role="status">{feedback}</p>}
             </form>
-            <div className="recent-content"><div className="staff-section-heading"><div><small>ACTIVIDAD</small><h2>EVENTOS CREADOS</h2></div></div><div className="content-table-head"><span>Tipo</span><span>Título</span><span>Estado</span><span>Autor</span><span>Fecha</span><span>ID</span></div>{events.map((item) => <div className="content-table-row" key={item.id}><span>{item.metadata?.type === "draft" ? "DRAFT" : "TORNEO"}</span><strong>{item.title}</strong><span className={item.status === "published" ? "status-live" : "status-draft"}>{item.status === "published" ? item.metadata?.is_history ? "HISTORIAL" : "PUBLICADO" : "BORRADOR"}</span><span>{item.author?.name ?? "Staff"}</span><span>{item.metadata?.date ?? "—"}</span><span>#{item.id}</span></div>)}</div>
+            <div className="recent-content"><div className="staff-section-heading"><div><small>ACTIVIDAD</small><h2>EVENTOS CREADOS</h2></div></div><div className="content-table-head"><span>Tipo</span><span>Título</span><span>Estado</span><span>Autor</span><span>Fecha</span><span>Acciones</span></div>{events.map((item) => <div className="content-table-row" key={item.id}><span>{item.metadata?.type === "draft" ? "DRAFT" : "TORNEO"}</span><strong>{item.title}</strong><span className={item.status === "published" ? "status-live" : "status-draft"}>{item.status === "published" ? item.metadata?.is_history ? "HISTORIAL" : "PUBLICADO" : "BORRADOR"}</span><span>{item.author?.name ?? "Staff"}</span><span>{item.metadata?.date ?? "—"}</span><button type="button" onClick={() => void startEditing(item.id)}>EDITAR #{item.id}</button></div>)}</div>
           </>}
         </div>
       </section>

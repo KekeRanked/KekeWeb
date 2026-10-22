@@ -94,6 +94,13 @@ class EventAdminController extends Controller
         return response()->json(['data' => $content->load('author:id,name,discord_username')], 201);
     }
 
+    public function show(Content $content): JsonResponse
+    {
+        abort_unless($content->type === 'event', 404);
+
+        return response()->json(['data' => $content->load('author:id,name,discord_username')]);
+    }
+
     public function update(Request $request, Content $content): JsonResponse
     {
         abort_unless($content->type === 'event', 404);

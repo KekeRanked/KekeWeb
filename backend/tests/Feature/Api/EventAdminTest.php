@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\Content;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -52,6 +53,65 @@ class EventAdminTest extends TestCase
             'type' => 'event',
             'status' => 'published',
             'title' => 'Copa KEKE — Torneo de prueba',
+        ]);
+    }
+
+    public function test_staff_can_open_and_update_an_event_draft(): void
+    {
+        $permission = Permission::query()->create([
+            'key' => 'events.manage',
+            'name' => 'Administrar eventos',
+        ]);
+        $role = Role::query()->create([
+            'key' => 'admin',
+            'name' => 'Administrador',
+            'priority' => 60,
+        ]);
+        $role->permissions()->attach($permission);
+        $user = User::factory()->create();
+        $user->roles()->attach($role);
+        $draft = Content::query()->create([
+            'type' => 'event',
+            'slug' => 'torneo-borrador',
+            'title' => 'Torneo borrador',
+            'excerpt' => 'Descripción inicial',
+            'body' => 'Información inicial',
+            'status' => 'draft',
+            'author_id' => $user->id,
+            'metadata' => [
+                'type' => 'tournament',
+                'format' => '5v5 CTW',
+                'team_count' => 8,
+                'players_per_team' => 5,
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/admin/events/{$draft->id}")
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Torneo borrador')
+            ->assertJsonPath('data.metadata.format', '5v5 CTW');
+
+        $this->actingAs($user)
+            ->putJson("/api/admin/events/{$draft->id}", [
+                'title' => 'Avengers: Doomsday',
+                'excerpt' => 'Descripción actualizada',
+                'body' => 'Información actualizada',
+                'status' => 'draft',
+                'metadata' => [
+                    'type' => 'tournament',
+                    'format' => '5v5 CTW',
+                    'team_count' => 8,
+                    'players_per_team' => 5,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Avengers: Doomsday');
+
+        $this->assertDatabaseHas('content', [
+            'id' => $draft->id,
+            'title' => 'Avengers: Doomsday',
+            'status' => 'draft',
         ]);
     }
 }
