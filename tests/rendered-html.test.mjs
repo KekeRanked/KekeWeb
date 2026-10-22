@@ -81,3 +81,9 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(registrationController, /RankedPlayer::query\(\)/);
   assert.match(registrationController, /whereNotNull\('discord_id'\)/);
 });
+
+test("keeps the API proxy resilient when the PHP container is recreated", async () => {
+  const nginxConfig = await readFile(new URL("../deploy/nginx-api.conf", import.meta.url), "utf8");
+  assert.match(nginxConfig, /resolver 127\.0\.0\.11/);
+  assert.match(nginxConfig, /fastcgi_pass \$api_upstream/);
+});
