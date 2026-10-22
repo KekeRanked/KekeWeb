@@ -17,7 +17,8 @@ class TournamentRegistrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->withoutMiddleware();
+        $this->withSession(['_token' => 'tournament-registration-test-token']);
+        $this->withHeader('X-CSRF-TOKEN', 'tournament-registration-test-token');
 
         config(['database.connections.minecraft_stats' => [
             'driver' => 'sqlite',
