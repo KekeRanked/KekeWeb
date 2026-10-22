@@ -1,19 +1,14 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-const templateRoot = new URL("../", import.meta.url);
-const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
-
-async function render() {
+async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(`http://localhost${pathname}`, {
       headers: { accept: "text/html" },
     }),
     {
@@ -28,64 +23,47 @@ async function render() {
   );
 }
 
-test("server-renders the starter loading skeleton", async () => {
+test("server-renders the KEKE homepage", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, developmentPreviewMeta);
-  assert.match(html, /<title>Your site is taking shape<\/title>/i);
-  assert.match(html, /Building your site/);
-  assert.match(html, /Your site is taking shape/);
-  assert.match(
-    html,
-    /Your first version will appear here automatically when it’s ready\./,
-  );
-  assert.doesNotMatch(html, /Codex/);
-  assert.match(html, /react-loading-skeleton/);
-  assert.match(html, /role="status"/);
+  assert.match(html, /<title>KEKE — Ranked Minecraft Network<\/title>/i);
+  assert.match(html, /TU PARTIDA\./);
+  assert.match(html, /TU RANGO\./);
+  assert.match(html, /AGENDA/);
+  assert.match(html, /EVENTOS/);
+  assert.match(html, /TEMPORADA 01/);
+  assert.doesNotMatch(html, /TEMPORADA BETA|BETA ACTIVA/);
+  assert.match(html, /href="\/eventos"/);
+  assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/i);
 });
 
-test("keeps the loading skeleton scoped and disposable", async () => {
-  const [preview, css, page, layout, packageJson, files] = await Promise.all([
-    readFile(new URL("SkeletonPreview.tsx", previewRoot), "utf8"),
-    readFile(new URL("preview.css", previewRoot), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readdir(previewRoot),
+test("keeps tournament registration wired to the public event and staff form", async () => {
+  const [eventDetail, registrationForm, teamsPanel, staffPage, migration] = await Promise.all([
+    readFile(new URL("../app/eventos/[slug]/event-detail-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/eventos/[slug]/tournament-registration-form.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/eventos/[slug]/tournament-teams.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/staff/contenido/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../backend/database/migrations/2026_10_13_000100_create_tournament_registrations_tables.php", import.meta.url), "utf8"),
   ]);
 
-  assert.deepEqual(files.sort(), ["SkeletonPreview.tsx", "preview.css"]);
-  assert.match(preview, /from "react-loading-skeleton"/);
-  assert.match(preview, /baseColor="#eceae7"/);
-  assert.match(preview, /highlightColor="#f9f8f6"/);
-  assert.match(preview, /duration=\{2\.8\}/);
-  assert.match(preview, /sites-skeleton-search-placeholder/);
-  assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
-
-  const shellIndex = preview.indexOf('className="sites-skeleton-shell"');
-  const statusIndex = preview.indexOf('className="sites-skeleton-status"');
-  assert.ok(shellIndex >= 0 && statusIndex > shellIndex);
-  assert.match(css, /position:\s*fixed/);
-  assert.match(css, /inset:\s*0/);
-  assert.match(css, /opacity:\s*0\.52/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.doesNotMatch(css, /#020617|canvas|pets|progress/i);
-  assert.doesNotMatch(
-    preview,
-    /loading-spinner|status-mark|status-progress|canvas|cookie|random/i,
-  );
-
-  assert.match(page, /export const metadata:\s*Metadata/);
-  assert.match(page, /"codex-preview": "development"/);
-  assert.match(page, /<SkeletonPreview \/>/);
-  assert.match(layout, /title:\s*"Starter Project"/);
-  assert.doesNotMatch(layout, /codex-preview|_sites-preview|themeColor|\bViewport\b/);
-  assert.doesNotMatch(css, /(^|\s)(html|body)\s*\{/m);
-
-  await assert.rejects(
-    access(new URL("public/_sites-preview", templateRoot)),
-  );
+  assert.match(eventDetail, /metadata\.type === "tournament"/);
+  assert.match(eventDetail, /<TournamentRegistrationForm slug=\{slug\}/);
+  assert.match(eventDetail, /INFORMACIÓN/);
+  assert.match(eventDetail, /REGISTRO/);
+  assert.match(eventDetail, /TEAMS/);
+  assert.match(eventDetail, /<TournamentTeams slug=\{slug\}/);
+  assert.match(registrationForm, /INSCRIBE A TU EQUIPO/);
+  assert.match(registrationForm, /registration-players/);
+  assert.match(registrationForm, /CUENTA REGISTRADA Y VERIFICADA/);
+  assert.match(staffPage, /registration_open/);
+  assert.match(staffPage, /Abrir registro al publicar/);
+  assert.match(staffPage, /CONFIGURACIÓN DEL DRAFT/);
+  assert.match(staffPage, /DATOS DEL TORNEO/);
+  assert.match(teamsPanel, /TEAMS REGISTRADOS/);
+  assert.match(teamsPanel, /\/teams/);
+  assert.match(migration, /tournament_registrations/);
+  assert.match(migration, /tournament_registration_members/);
 });

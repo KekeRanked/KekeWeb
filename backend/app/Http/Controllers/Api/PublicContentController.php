@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Content;
+use App\Models\TournamentRegistration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -76,6 +77,32 @@ class PublicContentController extends Controller
         return response()->json([
             'data' => $content->load('author:id,name,discord_username,discord_avatar'),
         ]);
+    }
+
+    public function tournamentTeams(Content $content): JsonResponse
+    {
+        abort_unless(
+            $content->type === 'event'
+            && $content->status === 'published'
+            && data_get($content->metadata, 'type') === 'tournament'
+            && ! data_get($content->metadata, 'is_history', false),
+            404
+        );
+
+        $teams = TournamentRegistration::query()
+            ->where('content_id', $content->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->with('members:id,registration_id,minecraft_uuid,minecraft_username,is_verified,role,position')
+            ->oldest()
+            ->get(['id', 'team_name', 'team_tag', 'status', 'created_at']);
+
+        return response()->json([
+            'data' => $teams,
+            'meta' => [
+                'registered_teams' => $teams->count(),
+                'max_teams' => data_get($content->metadata, 'team_count'),
+            ],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     private function listing(Request $request, array $types): JsonResponse

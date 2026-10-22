@@ -104,7 +104,7 @@ export default function LeaderboardsPage() {
       <section className="portal-hero leaderboard-portal-hero">
         <div className="portal-hero-grid" aria-hidden="true" />
         <div>
-          <p className="eyebrow"><span>TEMPORADA BETA</span> CLASIFICACIÓN POR ELO</p>
+          <p className="eyebrow"><span>TEMPORADA 01</span> CLASIFICACIÓN POR ELO</p>
           <h1>CADA PUESTO.<br /><em>CADA JUGADOR.</em></h1>
         </div>
         <p>La tabla completa del servidor, ordenada desde el mayor ELO hasta el último jugador clasificado.</p>
@@ -128,7 +128,7 @@ export default function LeaderboardsPage() {
           <label><span>MODALIDAD</span><select value={ratingKey} onChange={(event) => { setRatingKey(event.target.value); setPage(1); }}>
             {modes.map((mode) => <option value={mode.key} key={mode.key}>{mode.label}</option>)}
           </select></label>
-          <label><span>TEMPORADA</span><select defaultValue="beta"><option value="beta">TEMPORADA BETA</option></select></label>
+          <label><span>TEMPORADA</span><select defaultValue="01"><option value="01">TEMPORADA 01</option></select></label>
           <label className="leaderboard-search"><span>BUSCAR JUGADOR</span><input value={search} onChange={(event) => setSearch(event.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 16))} placeholder="Nombre de Minecraft" /></label>
         </div>
 

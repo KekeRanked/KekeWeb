@@ -73,7 +73,7 @@ export default function ReglasPage() {
       <section className="portal-hero rules-hero">
         <div className="portal-hero-grid" aria-hidden="true" />
         <div>
-          <p className="eyebrow"><span>REGLAMENTO OFICIAL</span> TEMPORADA 0</p>
+          <p className="eyebrow"><span>REGLAMENTO OFICIAL</span> TEMPORADA 01</p>
           <h1>REGLAS CLARAS.<br /><em>PARTIDAS JUSTAS.</em></h1>
         </div>
         <p>Estas normas rigen las partidas ranked y la convivencia en Discord. Participar en KEKE implica conocerlas y respetarlas.</p>

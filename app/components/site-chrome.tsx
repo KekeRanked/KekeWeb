@@ -111,7 +111,7 @@ export function SiteHeader({ active }: { active: Section }) {
 
           <a className="utility-news" href="/news">
             <span className="utility-live" aria-hidden="true" />
-            BETA ACTIVA
+            TEMPORADA 01
           </a>
 
           <div className="utility-actions">

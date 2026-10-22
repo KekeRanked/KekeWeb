@@ -15,6 +15,7 @@ Route::get('/news', [PublicContentController::class, 'news']);
 Route::get('/rules', [PublicContentController::class, 'rules']);
 Route::get('/events', [PublicContentController::class, 'events']);
 Route::get('/events/{content:slug}', [PublicContentController::class, 'event']);
+Route::get('/events/{content:slug}/teams', [PublicContentController::class, 'tournamentTeams']);
 Route::get('/event-banners/{filename}', [PublicContentController::class, 'eventBanner'])
     ->where('filename', '[0-9a-f-]+\\.(?:jpg|jpeg|png|webp)');
 Route::get('/store/products', StoreController::class);

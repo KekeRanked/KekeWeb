@@ -58,7 +58,7 @@ export default function EventosPage() {
       <section className="portal-hero event-hero">
         <div className="portal-hero-grid" aria-hidden="true" />
         <div>
-          <p className="eyebrow"><span>TEMPORADA BETA</span> CALENDARIO COMPETITIVO</p>
+          <p className="eyebrow"><span>TEMPORADA 01</span> CALENDARIO COMPETITIVO</p>
           <h1>ENTRA AL EVENTO.<br /><em>DEJA TU MARCA.</em></h1>
         </div>
         <p>Torneos organizados, drafts abiertos y formatos especiales con reglas publicadas antes de cada inscripción.</p>

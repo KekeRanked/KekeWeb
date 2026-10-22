@@ -4,7 +4,7 @@ const notices = [
   {
     category: "COMPETITIVO",
     date: "LANZAMIENTO",
-    title: "Comienza la Temporada Beta con un nuevo sistema de divisiones",
+    title: "Comienza la Temporada 01 con un nuevo sistema de divisiones",
     summary: "Iniciamos la clasificación con 9 rangos, desde Iron hasta Radiant. Compite, escala y demuestra tu nivel.",
   },
   {

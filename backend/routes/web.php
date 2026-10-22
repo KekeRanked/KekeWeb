@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\SessionController;
 use App\Http\Controllers\Admin\ContentAdminController;
 use App\Http\Controllers\Admin\EventAdminController;
 use App\Http\Controllers\Admin\RoleAdminController;
+use App\Http\Controllers\Api\TournamentRegistrationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -29,6 +30,10 @@ Route::prefix('auth')->group(function (): void {
 });
 
 Route::prefix('api')->middleware('auth')->group(function (): void {
+        Route::get('/events/{content:slug}/registration', [TournamentRegistrationController::class, 'show']);
+        Route::post('/events/{content:slug}/registration', [TournamentRegistrationController::class, 'store']);
+        Route::get('/events/{content:slug}/registration-players', [TournamentRegistrationController::class, 'searchPlayers']);
+
         Route::apiResource('/admin/content', ContentAdminController::class)
             ->middleware('permission:content.manage');
 

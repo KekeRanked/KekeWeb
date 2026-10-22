@@ -34,7 +34,7 @@ export default function Home() {
       <section className="hero" id="inicio">
         <div className="hero-grid" aria-hidden="true" />
         <div className="hero-copy">
-          <p className="eyebrow"><span>BETA</span> COMPITE · ESCALA · DOMINA</p>
+          <p className="eyebrow"><span>TEMPORADA 01</span> COMPITE · ESCALA · DOMINA</p>
           <h1>
             TU PARTIDA.<br />
             <em>TU RANGO.</em>
@@ -147,11 +147,11 @@ export default function Home() {
             <span className="news-block block-a" />
             <span className="news-block block-b" />
             <span className="news-block block-c" />
-            <span className="news-number">BETA</span>
+            <span className="news-number">01</span>
           </div>
           <div className="news-copy">
             <div className="card-kicker"><span>ACTUALIZACIÓN</span><time>LANZAMIENTO</time></div>
-            <h3>Comienza la Temporada Beta: construyendo el competitivo</h3>
+            <h3>Comienza la Temporada 01: construyendo el competitivo</h3>
             <p>Nuevas divisiones, mapas renovados y recompensas que distinguen habilidad de constancia.</p>
             <a href="/news">LEER NEWS COMPLETA</a>
           </div>
