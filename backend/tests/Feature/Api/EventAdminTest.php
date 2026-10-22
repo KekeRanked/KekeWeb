@@ -47,7 +47,7 @@ class EventAdminTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('data.status', 'published')
             ->assertJsonPath('data.metadata.type', 'tournament')
-            ->assertJsonMissingPath('data.metadata.winners');
+            ->assertJsonPath('data.metadata.winners', []);
 
         $this->assertDatabaseHas('content', [
             'type' => 'event',
@@ -113,5 +113,51 @@ class EventAdminTest extends TestCase
             'title' => 'Avengers: Doomsday',
             'status' => 'draft',
         ]);
+    }
+
+    public function test_staff_can_hide_republish_and_delete_an_event(): void
+    {
+        $permission = Permission::query()->create([
+            'key' => 'events.manage',
+            'name' => 'Administrar eventos',
+        ]);
+        $role = Role::query()->create([
+            'key' => 'admin',
+            'name' => 'Administrador',
+            'priority' => 60,
+        ]);
+        $role->permissions()->attach($permission);
+        $user = User::factory()->create();
+        $user->roles()->attach($role);
+        $event = Content::query()->create([
+            'type' => 'event',
+            'slug' => 'evento-visible',
+            'title' => 'Evento visible',
+            'body' => 'Información',
+            'status' => 'published',
+            'published_at' => now(),
+            'author_id' => $user->id,
+            'metadata' => ['type' => 'tournament', 'is_history' => false],
+        ]);
+
+        $this->actingAs($user)
+            ->putJson("/api/admin/events/{$event->id}", ['status' => 'draft'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'draft');
+
+        $this->getJson("/api/events/{$event->slug}")->assertNotFound();
+
+        $this->actingAs($user)
+            ->putJson("/api/admin/events/{$event->id}", ['status' => 'published'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'published');
+
+        $this->getJson("/api/events/{$event->slug}")->assertOk();
+
+        $this->actingAs($user)
+            ->deleteJson("/api/admin/events/{$event->id}")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('content', ['id' => $event->id]);
     }
 }

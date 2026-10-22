@@ -117,7 +117,14 @@ class EventAdminController extends Controller
     public function destroy(Content $content): JsonResponse
     {
         abort_unless($content->type === 'event', 404);
+        $bannerPath = is_string($content->cover_image)
+            && str_starts_with($content->cover_image, '/api/event-banners/')
+                ? 'event-banners/'.basename($content->cover_image)
+                : null;
         $content->delete();
+        if ($bannerPath) {
+            Storage::disk('public')->delete($bannerPath);
+        }
 
         return response()->json([], 204);
     }

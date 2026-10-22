@@ -70,8 +70,12 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(staffPage, /Abrir registro al publicar/);
   assert.match(staffPage, /CONFIGURACIÓN DEL DRAFT/);
   assert.match(staffPage, /DATOS DEL TORNEO/);
-  assert.match(staffPage, /EDITAR #\{item\.id\}/);
+  assert.match(staffPage, />EDITAR<\/button>/);
   assert.match(staffPage, /method: editingId \? "PUT" : "POST"/);
+  assert.match(staffPage, /changeVisibility/);
+  assert.match(staffPage, /OCULTAR/);
+  assert.match(staffPage, /deleteEvent/);
+  assert.match(staffPage, /ELIMINAR/);
   assert.match(teamsPanel, /TEAMS REGISTRADOS/);
   assert.match(teamsPanel, /\/teams/);
   assert.match(migration, /tournament_registrations/);

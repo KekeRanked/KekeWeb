@@ -53,6 +53,7 @@ export default function StaffContentPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [managingId, setManagingId] = useState<number | null>(null);
   const [type, setType] = useState("draft");
   const [publication, setPublication] = useState("upcoming");
   const [status, setStatus] = useState("draft");
@@ -181,6 +182,59 @@ export default function StaffContentPage() {
       document.getElementById("event-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (reason) {
       setFeedback(reason instanceof Error ? reason.message : "No se pudo abrir el evento.");
+    }
+  }
+
+  async function changeVisibility(item: EventItem) {
+    const nextStatus = item.status === "published" ? "draft" : "published";
+    setManagingId(item.id);
+    setFeedback(nextStatus === "draft" ? "Ocultando evento…" : "Publicando evento…");
+    try {
+      const token = await csrf();
+      const response = await fetch(`/api/admin/events/${item.id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { Accept: "application/json", "Content-Type": "application/json", "X-CSRF-TOKEN": token },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "No se pudo cambiar la visibilidad del evento.");
+      if (editingId === item.id) setStatus(nextStatus);
+      await loadEvents();
+      setFeedback(nextStatus === "draft"
+        ? `“${item.title}” quedó oculto para el público y permanece disponible como borrador.`
+        : `“${item.title}” vuelve a estar publicado.`);
+    } catch (reason) {
+      setFeedback(reason instanceof Error ? reason.message : "No se pudo cambiar la visibilidad del evento.");
+    } finally {
+      setManagingId(null);
+    }
+  }
+
+  async function deleteEvent(item: EventItem) {
+    const confirmed = window.confirm(`¿Eliminar definitivamente “${item.title}”? También se borrarán sus inscripciones. Esta acción no se puede deshacer.`);
+    if (!confirmed) return;
+
+    setManagingId(item.id);
+    setFeedback("Eliminando evento…");
+    try {
+      const token = await csrf();
+      const response = await fetch(`/api/admin/events/${item.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message || "No se pudo eliminar el evento.");
+      }
+      if (editingId === item.id) resetForm();
+      await loadEvents();
+      setFeedback(`“${item.title}” fue eliminado definitivamente.`);
+    } catch (reason) {
+      setFeedback(reason instanceof Error ? reason.message : "No se pudo eliminar el evento.");
+    } finally {
+      setManagingId(null);
     }
   }
 
@@ -341,7 +395,22 @@ export default function StaffContentPage() {
               <div className="form-actions"><button className="button-primary" type="submit">{submitLabel}</button>{editingId && <button className="button-muted" type="button" onClick={() => { resetForm(); setFeedback("Edición cancelada."); }}>CANCELAR EDICIÓN</button>}</div>
               {feedback && <p className="form-feedback" role="status">{feedback}</p>}
             </form>
-            <div className="recent-content"><div className="staff-section-heading"><div><small>ACTIVIDAD</small><h2>EVENTOS CREADOS</h2></div></div><div className="content-table-head"><span>Tipo</span><span>Título</span><span>Estado</span><span>Autor</span><span>Fecha</span><span>Acciones</span></div>{events.map((item) => <div className="content-table-row" key={item.id}><span>{item.metadata?.type === "draft" ? "DRAFT" : "TORNEO"}</span><strong>{item.title}</strong><span className={item.status === "published" ? "status-live" : "status-draft"}>{item.status === "published" ? item.metadata?.is_history ? "HISTORIAL" : "PUBLICADO" : "BORRADOR"}</span><span>{item.author?.name ?? "Staff"}</span><span>{item.metadata?.date ?? "—"}</span><button type="button" onClick={() => void startEditing(item.id)}>EDITAR #{item.id}</button></div>)}</div>
+            <div className="recent-content">
+              <div className="staff-section-heading"><div><small>ACTIVIDAD</small><h2>EVENTOS CREADOS</h2></div></div>
+              <div className="content-table-head"><span>Tipo</span><span>Título</span><span>Estado</span><span>Autor</span><span>Fecha</span><span>Acciones</span></div>
+              {events.map((item) => <div className="content-table-row" key={item.id}>
+                <span>{item.metadata?.type === "draft" ? "DRAFT" : "TORNEO"}</span>
+                <strong>{item.title}</strong>
+                <span className={item.status === "published" ? "status-live" : "status-draft"}>{item.status === "published" ? item.metadata?.is_history ? "HISTORIAL" : "PUBLICADO" : "OCULTO / BORRADOR"}</span>
+                <span>{item.author?.name ?? "Staff"}</span>
+                <span>{item.metadata?.date ?? "—"}</span>
+                <div className="content-table-actions">
+                  <button type="button" disabled={managingId === item.id} onClick={() => void startEditing(item.id)}>EDITAR</button>
+                  <button type="button" disabled={managingId === item.id} onClick={() => void changeVisibility(item)}>{item.status === "published" ? "OCULTAR" : "PUBLICAR"}</button>
+                  <button className="is-danger" type="button" disabled={managingId === item.id} onClick={() => void deleteEvent(item)}>ELIMINAR</button>
+                </div>
+              </div>)}
+            </div>
           </>}
         </div>
       </section>
