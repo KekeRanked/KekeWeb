@@ -2036,11 +2036,12 @@ html[data-theme="light"] .theme-toggle-track i {
 .event-publication-banner {
   display: block;
   width: 100%;
-  max-height: 560px;
+  height: auto;
+  max-height: none;
   margin-bottom: 34px;
   border: 1px solid var(--line);
-  object-fit: cover;
-  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  aspect-ratio: auto;
 }
 .event-publication-header h1 {
   margin: 18px 0 24px;
@@ -3236,9 +3237,11 @@ html[data-theme="light"] .tournament-sidebar { background: #ede9e0; }
 .event-banner-preview img {
   display: block;
   width: 100%;
+  height: auto;
+  max-height: none;
   border: 1px solid var(--line);
-  object-fit: cover;
-  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  aspect-ratio: auto;
 }
 .event-banner-preview button {
   position: absolute;
