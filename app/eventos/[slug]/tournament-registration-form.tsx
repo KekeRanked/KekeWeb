@@ -64,8 +64,8 @@ function headUrl(uuid: string, size: number) {
   return `https://mc-heads.net/avatar/${uuid.replaceAll("-", "")}/${size}.png`;
 }
 
-function discordLabel(discordId: string | null, discordUsername: string | null) {
-  return discordUsername ? `@${discordUsername}` : discordId ? `ID ${discordId}` : "";
+function discordLabel(discordUsername: string | null) {
+  return discordUsername ? `@${discordUsername}` : "CUENTA VINCULADA";
 }
 
 async function csrf() {
@@ -186,7 +186,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
     setActiveSearchIndex(null);
     setResults([]);
     setSearching(false);
-    setFeedback(`${player.minecraft_username} · ${discordLabel(player.discord_id, player.discord_username)} fue vinculado al equipo.`);
+    setFeedback(`${player.minecraft_username} · ${discordLabel(player.discord_username)} fue vinculado al equipo.`);
   }
 
   function setMemberQuery(index: number, minecraftUsername: string) {
@@ -322,7 +322,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
             <b>VINCULADO</b>
           </div>
           <div className="registration-member-list">{slots.map((slot, index) => {
-            const linkedDiscord = discordLabel(slot.discord_id, slot.discord_username);
+            const linkedDiscord = discordLabel(slot.discord_username);
             const isRequired = index < meta.minimum_players - 1;
             return <div className={`registration-member${slot.is_verified ? " is-verified" : ""}`} key={index}>
               <span>{String(index + 2).padStart(2, "0")}</span>
@@ -335,7 +335,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
                   const alreadySelected = selectedUuids.has(player.minecraft_uuid);
                   return <button type="button" key={player.minecraft_uuid} disabled={alreadySelected} onClick={() => referencePlayer(index, player)}>
                     <img src={headUrl(player.minecraft_uuid, 34)} alt={`Cabeza de ${player.minecraft_username}`} width={34} height={34} />
-                    <span><strong>{player.minecraft_username}</strong><small>Discord: {discordLabel(player.discord_id, player.discord_username)}</small></span>
+                    <span><strong>{player.minecraft_username}</strong><small>Discord: {discordLabel(player.discord_username)}</small></span>
                     <b>{alreadySelected ? "YA ESTÁ EN EL EQUIPO" : "SELECCIONAR"}</b>
                   </button>;
                 }) : <p>NO HAY UN USUARIO REGISTRADO CON ESE NICK</p>}</div>}

@@ -2970,11 +2970,27 @@ html[data-theme="light"] .event-kind-section.is-tournament {
 .tournament-team-roster small { color: #77736a; font: 650 7px/1.2 var(--font-geist-mono), monospace; letter-spacing: 0.08em; }
 .tournament-team-title > button { padding: 8px 9px; }
 .tournament-team-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 7px; }
-.tournament-team-roster > div { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 9px; min-width: 0; }
+.tournament-team-roster > div {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  transition: filter 180ms ease, opacity 180ms ease;
+}
+.tournament-team-roster > div.is-accepted { opacity: 1; filter: none; }
+.tournament-team-roster > div.is-pending { opacity: 0.42; filter: grayscale(0.9) saturate(0.25) brightness(0.72); }
+.tournament-team-roster > div.is-rejected { opacity: 0.28; filter: grayscale(1) brightness(0.58); }
 .tournament-team-roster img { image-rendering: pixelated; }
 .tournament-team-roster i { display: grid; width: 36px; height: 36px; place-items: center; border: 1px dashed #3d3b35; color: #6d6960; font-style: normal; }
 .tournament-team-roster span { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .tournament-team-roster strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.tournament-team-roster small { display: flex; align-items: center; gap: 4px; }
+.tournament-team-roster small b { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: #d19a3b; box-shadow: 0 0 6px currentColor; }
+.tournament-team-roster .is-accepted small { color: #9acb62; }
+.tournament-team-roster .is-accepted small b { background: #9acb62; }
+.tournament-team-roster .is-rejected small { color: #d86f62; }
+.tournament-team-roster .is-rejected small b { background: #d86f62; }
 .tournament-empty-state {
   display: grid;
   grid-template-columns: auto 1fr;
