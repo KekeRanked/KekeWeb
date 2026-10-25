@@ -59,9 +59,10 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(eventDetail, /<TournamentTeams slug=\{slug\}/);
   assert.match(registrationForm, /INSCRIBE A TU EQUIPO/);
   assert.match(registrationForm, /registration-players/);
-  assert.match(registrationForm, /<small>MINECRAFT<\/small>/);
-  assert.match(registrationForm, /<small>DISCORD<\/small>/);
-  assert.match(registrationForm, /Se autocompleta al seleccionar/);
+  assert.match(registrationForm, /Nick premium de Minecraft/);
+  assert.match(registrationForm, /Usuario de Discord/);
+  assert.match(registrationForm, /minimum_players/);
+  assert.doesNotMatch(registrationForm, /Se autocompleta al seleccionar/);
   assert.match(registrationForm, /uuid\.replaceAll\("-", ""\)/);
   assert.match(registrationForm, /registration-member-suggestions/);
   assert.match(registrationForm, /mc-heads\.net\/avatar/);
@@ -84,6 +85,8 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(discordMigration, /discord_username/);
   assert.match(registrationController, /RankedPlayer::query\(\)/);
   assert.match(registrationController, /whereNotNull\('discord_id'\)/);
+  assert.match(registrationController, /api\.mojang\.com\/users\/profiles\/minecraft/);
+  assert.match(registrationController, /minimum_players' => 6/);
 });
 
 test("keeps the API proxy resilient when the PHP container is recreated", async () => {

@@ -40,6 +40,7 @@ type Registration = {
 
 type RegistrationMeta = {
   players_per_team: number;
+  minimum_players: number;
   max_teams: number | null;
   registered_teams: number;
   spots_left: number | null;
@@ -198,11 +199,29 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
     setFeedback("");
   }
 
+  function setDiscordQuery(index: number, discordUsername: string) {
+    setSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? {
+      ...slot,
+      user_id: null,
+      discord_id: null,
+      minecraft_uuid: null,
+      discord_username: discordUsername,
+      is_verified: false,
+    } : slot));
+    setFeedback("");
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFeedback("");
-    if (slots.some((slot) => !slot.minecraft_uuid || !slot.discord_id || !slot.is_verified)) {
-      setFeedback("Selecciona la cuenta vinculada de Minecraft y Discord para cada integrante.");
+    const minimumPlayers = meta?.minimum_players ?? 6;
+    const completedSlots = slots.filter((slot) => slot.minecraft_username.trim() || slot.discord_username?.trim() || slot.discord_id);
+    if (completedSlots.length + 1 < minimumPlayers) {
+      setFeedback(`Debes registrar al menos ${minimumPlayers} jugadores contando al capitán.`);
+      return;
+    }
+    if (completedSlots.some((slot) => !slot.minecraft_username.trim() || (!slot.discord_username?.trim() && !slot.discord_id))) {
+      setFeedback("Completa el nick premium de Minecraft y el Discord de cada integrante agregado.");
       return;
     }
     setSaving(true);
@@ -216,7 +235,12 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
           team_name: teamName,
           team_tag: teamTag || null,
           notes: notes || null,
-          members: slots.map((slot) => ({ minecraft_uuid: slot.minecraft_uuid })),
+          members: completedSlots.map((slot) => ({
+            minecraft_uuid: slot.is_verified ? slot.minecraft_uuid : null,
+            minecraft_username: slot.minecraft_username.trim(),
+            discord_id: slot.is_verified ? slot.discord_id : null,
+            discord_username: slot.discord_username?.trim() || null,
+          })),
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -245,7 +269,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
   return (
     <section className="tournament-registration">
       <header className="registration-heading">
-        <div><p className="eyebrow"><span>INSCRIPCIONES</span> EQUIPOS</p><h2>{registration ? "TU EQUIPO" : "INSCRIBE A TU EQUIPO"}</h2><p>El capitán cuenta como una plaza. Escribe el nick de Minecraft de cada integrante y selecciona su cuenta de Discord vinculada.</p></div>
+        <div><p className="eyebrow"><span>INSCRIPCIONES</span> EQUIPOS</p><h2>{registration ? "TU EQUIPO" : "INSCRIBE A TU EQUIPO"}</h2><p>El capitán cuenta como una plaza. Escribe el nick premium de Minecraft y el Discord de cada integrante. Si ya está registrado, puedes seleccionarlo para completar sus datos. El capitán podrá editar el equipo hasta el cierre de inscripciones.</p></div>
         <div className="registration-capacity"><small>EQUIPOS INSCRITOS</small><strong>{meta.registered_teams}{meta.max_teams ? ` / ${meta.max_teams}` : ""}</strong><span>{meta.spots_left === null ? "Cupo abierto" : `${meta.spots_left} plazas disponibles`}</span></div>
       </header>
 
@@ -254,7 +278,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
           {registration && <div className={`registration-status is-${registration.status}`}><small>ESTADO DE TU INSCRIPCIÓN</small><strong>{registration.status === "approved" ? "APROBADA" : registration.status === "rejected" ? "REQUIERE CAMBIOS" : "PENDIENTE DE REVISIÓN"}</strong></div>}
           <div className="registration-team-fields"><label>Nombre del equipo<input required minLength={2} maxLength={80} value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Nombre del equipo" /></label><label>Tag corto <small>OPCIONAL</small><input minLength={2} maxLength={8} pattern="[A-Za-z0-9_-]+" value={teamTag} onChange={(event) => setTeamTag(event.target.value)} placeholder="KEKE" /></label></div>
 
-          <div className="registration-roster-heading"><div><strong>ALINEACIÓN</strong><span>{meta.players_per_team} jugadores exactos</span></div><small>{slots.filter((slot) => slot.is_verified).length + 1} / {meta.players_per_team} VINCULADOS</small></div>
+          <div className="registration-roster-heading"><div><strong>ALINEACIÓN</strong><span>Entre {meta.minimum_players} y {meta.players_per_team} jugadores, incluido el capitán</span></div><small>{slots.filter((slot) => slot.minecraft_username.trim() && (slot.discord_username?.trim() || slot.discord_id)).length + 1} / {meta.minimum_players} MÍNIMO</small></div>
           <div className="registration-member is-captain">
             <span>01</span>
             <img src={headUrl(user.minecraft_uuid, 42)} alt={`Cabeza de ${user.minecraft_username}`} width={42} height={42} />
@@ -263,12 +287,13 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
           </div>
           <div className="registration-member-list">{slots.map((slot, index) => {
             const linkedDiscord = discordLabel(slot.discord_id, slot.discord_username);
+            const isRequired = index < meta.minimum_players - 1;
             return <div className={`registration-member${slot.is_verified ? " is-verified" : ""}`} key={index}>
               <span>{String(index + 2).padStart(2, "0")}</span>
               {slot.minecraft_uuid ? <img src={headUrl(slot.minecraft_uuid, 42)} alt={`Cabeza de ${slot.minecraft_username}`} width={42} height={42} /> : <i aria-hidden="true">?</i>}
               <div className="registration-member-field">
-                <label><small>MINECRAFT</small><input required autoComplete="off" maxLength={16} pattern="[A-Za-z0-9_]+" value={slot.minecraft_username} onFocus={() => { if (activeSearchIndex !== index && !slot.is_verified) { setActiveSearchIndex(index); setResults([]); } }} onChange={(event) => setMemberQuery(index, event.target.value)} placeholder="Nick de Minecraft" aria-label={`Nick del integrante ${index + 2}`} /></label>
-                <label><small>DISCORD</small><input readOnly value={linkedDiscord} placeholder="Se autocompleta al seleccionar" aria-label={`Discord del integrante ${index + 2}`} /></label>
+                <label><small>MINECRAFT{!isRequired && " · OPCIONAL"}</small><input required={isRequired} autoComplete="off" maxLength={16} pattern="[A-Za-z0-9_]+" value={slot.minecraft_username} onFocus={() => { if (activeSearchIndex !== index && !slot.is_verified) { setActiveSearchIndex(index); setResults([]); } }} onChange={(event) => setMemberQuery(index, event.target.value)} placeholder="Nick premium de Minecraft" aria-label={`Nick del integrante ${index + 2}`} /></label>
+                <label><small>DISCORD{!isRequired && " · OPCIONAL"}</small><input required={isRequired || Boolean(slot.minecraft_username.trim())} value={linkedDiscord} maxLength={64} onChange={(event) => setDiscordQuery(index, event.target.value)} placeholder="Usuario de Discord" aria-label={`Discord del integrante ${index + 2}`} /></label>
                 {!slot.is_verified && searching && activeSearchIndex === index && <small>BUSCANDO EN RANKEDMINECRAFT…</small>}
                 {activeSearchIndex === index && activeQuery.length >= 2 && !searching && <div className="registration-member-suggestions">{results.length ? results.map((player) => {
                   const alreadySelected = selectedUuids.has(player.minecraft_uuid);
@@ -277,7 +302,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
                     <span><strong>{player.minecraft_username}</strong><small>Discord: {discordLabel(player.discord_id, player.discord_username)}</small></span>
                     <b>{alreadySelected ? "YA ESTÁ EN EL EQUIPO" : "SELECCIONAR"}</b>
                   </button>;
-                }) : <p>NO SE ENCONTRÓ UN JUGADOR VERIFICADO CON DISCORD VINCULADO</p>}</div>}
+                }) : <p>NO HAY UNA CUENTA REGISTRADA; PUEDES CONTINUAR MANUALMENTE</p>}</div>}
               </div>
               {slot.is_verified && <button type="button" onClick={() => setMemberQuery(index, "")}>CAMBIAR</button>}
             </div>;

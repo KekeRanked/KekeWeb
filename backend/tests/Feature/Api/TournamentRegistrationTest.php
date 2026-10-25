@@ -7,6 +7,8 @@ use App\Models\Minecraft\RankedPlayer;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request as ClientRequest;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -59,13 +61,15 @@ class TournamentRegistrationTest extends TestCase
             'discord_id' => '100000000000000007',
             'is_verified' => true,
         ]);
+        $extraMembers = $this->pluginMembers(3, 'ExtraLinked');
 
         $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Team Cupcake',
             'team_tag' => 'CAKE',
             'members' => [
-                ['minecraft_uuid' => $teammate->minecraft_uuid],
-                ['minecraft_uuid' => '77777777-7777-4777-8777-777777777777'],
+                ['minecraft_uuid' => $teammate->minecraft_uuid, 'minecraft_username' => $teammate->minecraft_username],
+                ['minecraft_uuid' => '77777777-7777-4777-8777-777777777777', 'minecraft_username' => 'PluginOnly'],
+                ...$extraMembers,
             ],
         ])->assertCreated()
             ->assertJsonPath('data.team_name', 'Team Cupcake')
@@ -81,7 +85,7 @@ class TournamentRegistrationTest extends TestCase
             'captain_id' => $captain->id,
             'team_tag' => 'CAKE',
         ]);
-        $this->assertDatabaseCount('tournament_registration_members', 3);
+        $this->assertDatabaseCount('tournament_registration_members', 6);
     }
 
     public function test_team_must_match_the_size_set_by_staff(): void
@@ -99,6 +103,51 @@ class TournamentRegistrationTest extends TestCase
             'members' => [],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('members');
+    }
+
+    public function test_captain_can_use_manual_discord_and_edit_until_registration_closes(): void
+    {
+        Http::fake([
+            'api.mojang.com/users/profiles/minecraft/*' => function (ClientRequest $request) {
+                $username = rawurldecode(basename($request->url()));
+
+                return Http::response(['id' => md5(strtolower($username)), 'name' => $username], 200);
+            },
+        ]);
+
+        $event = $this->tournament();
+        $captain = User::factory()->create([
+            'minecraft_uuid' => 'abababab-abab-4bab-8bab-abababababab',
+            'minecraft_username' => 'ManualCaptain',
+            'discord_id' => '100000000000000020',
+        ]);
+        $this->verifiedPlayer($captain);
+        $members = collect(range(1, 5))->map(fn (int $index): array => [
+            'minecraft_username' => "Premium{$index}",
+            'discord_username' => "manual.user{$index}",
+        ])->all();
+
+        $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
+            'team_name' => 'Manual Team',
+            'members' => $members,
+        ])->assertCreated()
+            ->assertJsonPath('data.members.1.minecraft_username', 'Premium1')
+            ->assertJsonPath('data.members.1.discord_username', 'manual.user1')
+            ->assertJsonPath('data.members.1.is_verified', false);
+
+        $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
+            'team_name' => 'Manual Team Updated',
+            'members' => $members,
+        ])->assertOk()->assertJsonPath('data.team_name', 'Manual Team Updated');
+
+        $metadata = $event->metadata;
+        $metadata['registration_open'] = false;
+        $event->update(['metadata' => $metadata]);
+
+        $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
+            'team_name' => 'Closed Edit',
+            'members' => $members,
+        ])->assertUnprocessable();
     }
 
     public function test_search_reads_verified_discord_links_directly_from_rankedminecraft(): void
@@ -157,13 +206,15 @@ class TournamentRegistrationTest extends TestCase
         ]);
         $this->verifiedPlayer($firstMember);
         $this->verifiedPlayer($secondMember);
+        $extraMembers = $this->pluginMembers(3, 'PublicExtra');
 
         $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Visible Team',
             'notes' => 'Esta nota solo corresponde al staff.',
             'members' => [
-                ['minecraft_uuid' => $firstMember->minecraft_uuid],
-                ['minecraft_uuid' => $secondMember->minecraft_uuid],
+                ['minecraft_uuid' => $firstMember->minecraft_uuid, 'minecraft_username' => $firstMember->minecraft_username],
+                ['minecraft_uuid' => $secondMember->minecraft_uuid, 'minecraft_username' => $secondMember->minecraft_username],
+                ...$extraMembers,
             ],
         ])->assertCreated();
 
@@ -191,7 +242,7 @@ class TournamentRegistrationTest extends TestCase
                 'is_history' => false,
                 'registration_open' => true,
                 'team_count' => 8,
-                'players_per_team' => 3,
+                'players_per_team' => 8,
             ],
         ]);
     }
@@ -204,5 +255,21 @@ class TournamentRegistrationTest extends TestCase
             'discord_id' => $user->discord_id,
             'is_verified' => true,
         ]);
+    }
+
+    private function pluginMembers(int $count, string $prefix): array
+    {
+        return collect(range(1, $count))->map(function (int $index) use ($prefix): array {
+            $suffix = str_pad((string) $index, 12, '0', STR_PAD_LEFT);
+            $uuid = "aaaaaaaa-aaaa-4aaa-8aaa-{$suffix}";
+            RankedPlayer::query()->create([
+                'minecraft_uuid' => $uuid,
+                'minecraft_username' => "{$prefix}{$index}",
+                'discord_id' => '20000000'.str_pad((string) $index, 10, '0', STR_PAD_LEFT),
+                'is_verified' => true,
+            ]);
+
+            return ['minecraft_uuid' => $uuid, 'minecraft_username' => "{$prefix}{$index}"];
+        })->all();
     }
 }
