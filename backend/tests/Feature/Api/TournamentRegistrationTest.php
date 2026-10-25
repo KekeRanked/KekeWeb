@@ -108,6 +108,54 @@ class TournamentRegistrationTest extends TestCase
             ->assertJsonValidationErrors('members');
     }
 
+    public function test_player_cannot_join_two_teams_in_the_same_tournament(): void
+    {
+        $event = $this->tournament();
+        $firstCaptain = User::factory()->create();
+        $occupiedPlayer = User::factory()->create([
+            'minecraft_uuid' => '34343434-3434-4434-8434-343434343434',
+            'minecraft_username' => 'AlreadyTaken',
+            'discord_id' => '100000000000000034',
+        ]);
+        $this->verifiedPlayer($occupiedPlayer);
+        $firstRegistration = TournamentRegistration::query()->create([
+            'content_id' => $event->id,
+            'captain_id' => $firstCaptain->id,
+            'team_name' => 'Primer Equipo',
+            'status' => 'pending',
+        ]);
+        $firstRegistration->members()->create([
+            'content_id' => $event->id,
+            'user_id' => $occupiedPlayer->id,
+            'discord_id' => $occupiedPlayer->discord_id,
+            'minecraft_uuid' => $occupiedPlayer->minecraft_uuid,
+            'minecraft_username' => $occupiedPlayer->minecraft_username,
+            'is_verified' => true,
+            'role' => 'member',
+            'position' => 1,
+        ]);
+
+        $secondCaptain = User::factory()->create([
+            'minecraft_uuid' => '56565656-5656-4565-8565-565656565656',
+            'minecraft_username' => 'SecondCaptain',
+            'discord_id' => '100000000000000056',
+        ]);
+        $this->verifiedPlayer($secondCaptain);
+        $extraMembers = $this->pluginMembers(4, 'ConflictExtra');
+
+        $this->actingAs($secondCaptain)->postJson("/api/events/{$event->slug}/registration", [
+            'team_name' => 'Segundo Equipo',
+            'members' => [
+                ['minecraft_uuid' => $occupiedPlayer->minecraft_uuid, 'minecraft_username' => $occupiedPlayer->minecraft_username],
+                ...$extraMembers,
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('members')
+            ->assertJsonFragment(['AlreadyTaken ya está inscrito en Primer Equipo. Un jugador sólo puede pertenecer a un equipo por torneo.']);
+
+        $this->assertDatabaseMissing('tournament_registrations', ['team_name' => 'Segundo Equipo']);
+    }
+
     public function test_captain_can_use_manual_discord_and_edit_until_registration_closes(): void
     {
         Http::fake([

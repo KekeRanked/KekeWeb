@@ -93,6 +93,8 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(registrationController, /minimum_players' => 6/);
   assert.match(registrationController, /function destroy/);
   assert.match(registrationController, /function adminDestroy/);
+  assert.match(registrationController, /lockForUpdate/);
+  assert.match(registrationController, /Un jugador sólo puede pertenecer a un equipo por torneo/);
 });
 
 test("keeps the API proxy resilient when the PHP container is recreated", async () => {

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Content;
 use App\Models\Minecraft\RankedPlayer;
 use App\Models\TournamentRegistration;
+use App\Models\TournamentRegistrationMember;
 use App\Models\User;
 use App\Services\MinecraftIdentityService;
 use Illuminate\Database\QueryException;
@@ -135,7 +136,7 @@ class TournamentRegistrationController extends Controller
             'user_id' => $user->id,
             'discord_id' => (string) $captain->discord_id,
             'discord_username' => $user->discord_username,
-            'minecraft_uuid' => $captain->minecraft_uuid,
+            'minecraft_uuid' => $this->normalizeMinecraftUuid($captain->minecraft_uuid),
             'minecraft_username' => $captain->minecraft_username,
             'is_verified' => true,
             'role' => 'captain',
@@ -152,7 +153,7 @@ class TournamentRegistrationController extends Controller
                     'user_id' => $referenced?->id,
                     'discord_id' => (string) $verifiedPlayer->discord_id,
                     'discord_username' => $referenced?->discord_username,
-                    'minecraft_uuid' => $verifiedPlayer->minecraft_uuid,
+                    'minecraft_uuid' => $this->normalizeMinecraftUuid($verifiedPlayer->minecraft_uuid),
                     'minecraft_username' => $verifiedPlayer->minecraft_username,
                     'is_verified' => true,
                     'role' => 'member',
@@ -183,17 +184,42 @@ class TournamentRegistrationController extends Controller
             throw ValidationException::withMessages(['members' => 'No puedes repetir integrantes dentro del mismo equipo.']);
         }
 
-        $maxTeams = (int) data_get($content->metadata, 'team_count', 0);
         $existing = TournamentRegistration::query()
             ->where('content_id', $content->id)
             ->where('captain_id', $user->id)
             ->first();
-        if (! $existing && $maxTeams > 0 && TournamentRegistration::query()->where('content_id', $content->id)->count() >= $maxTeams) {
-            throw ValidationException::withMessages(['team_name' => 'El torneo ya alcanzó el máximo de equipos.']);
-        }
+        $wasExisting = (bool) $existing;
 
         try {
-            $registration = DB::transaction(function () use ($content, $user, $data, $members, $existing): TournamentRegistration {
+            $registration = DB::transaction(function () use ($content, $user, $data, $members): TournamentRegistration {
+                Content::query()->whereKey($content->id)->lockForUpdate()->firstOrFail();
+                $existing = TournamentRegistration::query()
+                    ->where('content_id', $content->id)
+                    ->where('captain_id', $user->id)
+                    ->first();
+                $maxTeams = (int) data_get($content->metadata, 'team_count', 0);
+                if (! $existing && $maxTeams > 0 && TournamentRegistration::query()->where('content_id', $content->id)->count() >= $maxTeams) {
+                    throw ValidationException::withMessages(['team_name' => 'El torneo ya alcanzó el máximo de equipos.']);
+                }
+
+                $incomingUuids = $members->pluck('minecraft_uuid')
+                    ->filter()
+                    ->map(fn ($uuid): string => $this->normalizeMinecraftUuid((string) $uuid))
+                    ->flip();
+                $occupiedMember = TournamentRegistrationMember::query()
+                    ->where('content_id', $content->id)
+                    ->when($existing, fn ($query) => $query->where('registration_id', '<>', $existing->id))
+                    ->with('registration:id,team_name')
+                    ->get(['id', 'registration_id', 'minecraft_uuid', 'minecraft_username'])
+                    ->first(fn (TournamentRegistrationMember $member): bool => $member->minecraft_uuid
+                        && $incomingUuids->has($this->normalizeMinecraftUuid($member->minecraft_uuid)));
+                if ($occupiedMember) {
+                    $teamName = $occupiedMember->registration?->team_name ?? 'otro equipo';
+                    throw ValidationException::withMessages([
+                        'members' => "{$occupiedMember->minecraft_username} ya está inscrito en {$teamName}. Un jugador sólo puede pertenecer a un equipo por torneo.",
+                    ]);
+                }
+
                 $registration = $existing ?? new TournamentRegistration();
                 $registration->fill([
                     'content_id' => $content->id,
@@ -218,8 +244,8 @@ class TournamentRegistrationController extends Controller
         return response()->json([
             'data' => $registration,
             'meta' => $this->meta($content),
-            'message' => $existing ? 'Inscripción actualizada.' : 'Equipo inscrito correctamente.',
-        ], $existing ? 200 : 201);
+            'message' => $wasExisting ? 'Inscripción actualizada.' : 'Equipo inscrito correctamente.',
+        ], $wasExisting ? 200 : 201);
     }
 
     public function destroy(Request $request, Content $content): JsonResponse
@@ -305,9 +331,19 @@ class TournamentRegistrationController extends Controller
         }
 
         return [
-            'uuid' => substr($id, 0, 8).'-'.substr($id, 8, 4).'-'.substr($id, 12, 4).'-'.substr($id, 16, 4).'-'.substr($id, 20),
+            'uuid' => $this->normalizeMinecraftUuid($id),
             'name' => $name,
         ];
+    }
+
+    private function normalizeMinecraftUuid(string $uuid): string
+    {
+        $hex = strtolower(preg_replace('/[^0-9a-f]/i', '', $uuid) ?? '');
+        if (strlen($hex) !== 32) {
+            return strtolower($uuid);
+        }
+
+        return substr($hex, 0, 8).'-'.substr($hex, 8, 4).'-'.substr($hex, 12, 4).'-'.substr($hex, 16, 4).'-'.substr($hex, 20);
     }
 
     private function meta(Content $content): array
