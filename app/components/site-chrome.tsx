@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FaDiscord, FaGithub, FaTwitch, FaUser, FaXTwitter, FaYoutube } from "react-icons/fa6";
 
 type Section = "inicio" | "play" | "rankeds" | "leaderboards" | "news" | "reglas" | "eventos" | "staff" | "tienda";
@@ -35,6 +35,14 @@ type SessionUser = {
   permissions?: string[];
 };
 
+type TournamentInvitation = {
+  id: number;
+  team_name: string;
+  team_tag: string | null;
+  event: { slug: string; title: string };
+  captain: { name: string };
+};
+
 function ThemeToggle({ theme, onToggle }: { theme: "dark" | "light"; onToggle: () => void }) {
   return (
     <button className="theme-toggle" type="button" onClick={onToggle} aria-label={`Cambiar a modo ${theme === "dark" ? "claro" : "oscuro"}`}>
@@ -49,6 +57,18 @@ export function SiteHeader({ active }: { active: Section }) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [invitations, setInvitations] = useState<TournamentInvitation[]>([]);
+  const [respondingInvitation, setRespondingInvitation] = useState<number | null>(null);
+  const [invitationFeedback, setInvitationFeedback] = useState("");
+
+  const refreshInvitations = useCallback(async () => {
+    const response = await fetch("/api/tournament-invitations", {
+      credentials: "include",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    if (response.ok) setInvitations((await response.json()).data ?? []);
+  }, []);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("keke-theme");
@@ -62,9 +82,17 @@ export function SiteHeader({ active }: { active: Section }) {
       headers: { Accept: "application/json" },
     })
       .then((response) => response.ok ? response.json() : null)
-      .then((payload) => setUser(payload?.data ?? null))
-      .catch(() => setUser(null));
-  }, []);
+      .then(async (payload) => {
+        const sessionUser = payload?.data ?? null;
+        setUser(sessionUser);
+        if (!sessionUser) return;
+        await refreshInvitations();
+      })
+      .catch(() => {
+        setUser(null);
+        setInvitations([]);
+      });
+  }, [refreshInvitations]);
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -88,7 +116,42 @@ export function SiteHeader({ active }: { active: Section }) {
       headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
     });
 
-    if (response.ok) setUser(null);
+    if (response.ok) {
+      setUser(null);
+      setInvitations([]);
+      setAccountOpen(false);
+    }
+  }
+
+  async function respondToInvitation(invitation: TournamentInvitation, action: "accept" | "reject") {
+    setRespondingInvitation(invitation.id);
+    setInvitationFeedback("");
+    try {
+      const csrfResponse = await fetch("/auth/csrf", { credentials: "include", headers: { Accept: "application/json" } });
+      if (!csrfResponse.ok) throw new Error("La sesión expiró. Vuelve a iniciar sesión.");
+      const { token } = await csrfResponse.json();
+      const response = await fetch(`/api/tournament-invitations/${invitation.id}/respond`, {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json", "Content-Type": "application/json", "X-CSRF-TOKEN": token },
+        body: JSON.stringify({ action }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const errors = payload.errors && typeof payload.errors === "object"
+          ? Object.values(payload.errors as Record<string, string[]>).flat().join(" ")
+          : "";
+        throw new Error(errors || payload.message || "No se pudo responder la invitación.");
+      }
+      setInvitations((current) => action === "accept"
+        ? current.filter((item) => item.event.slug !== invitation.event.slug)
+        : current.filter((item) => item.id !== invitation.id));
+      setInvitationFeedback(payload.message ?? "Invitación respondida.");
+    } catch (reason) {
+      setInvitationFeedback(reason instanceof Error ? reason.message : "No se pudo responder la invitación.");
+    } finally {
+      setRespondingInvitation(null);
+    }
   }
 
   const avatarUrl = user?.minecraft_uuid
@@ -118,12 +181,22 @@ export function SiteHeader({ active }: { active: Section }) {
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
             {user ? (
               <div className="account-menu">
-                <button className="login-button is-authenticated" type="button" onClick={() => setAccountOpen((current) => !current)} aria-expanded={accountOpen} aria-haspopup="menu" aria-label={`Menú de cuenta de ${accountName}`} title="Abrir menú de cuenta">
+                <button className="login-button is-authenticated" type="button" onClick={() => { const nextOpen = !accountOpen; setAccountOpen(nextOpen); if (nextOpen) void refreshInvitations(); }} aria-expanded={accountOpen} aria-haspopup="menu" aria-label={`Menú de cuenta de ${accountName}`} title="Abrir menú de cuenta">
                   {avatarUrl ? <img src={avatarUrl} alt="" aria-hidden="true" /> : <FaUser aria-hidden="true" />}
-                  <span>{accountName}</span><i className="account-chevron" aria-hidden="true" />
+                  <span>{accountName}</span>{invitations.length > 0 && <b className="account-invitation-badge" aria-label={`${invitations.length} invitaciones pendientes`}>{invitations.length}</b>}<i className="account-chevron" aria-hidden="true" />
                 </button>
                 {accountOpen && <div className="account-dropdown" role="menu">
                   {user.roles?.[0] && <small className="account-role">{user.roles[0].toUpperCase()}</small>}
+                  {invitations.length > 0 && <section className="account-invitations" aria-label="Invitaciones a equipos">
+                    <header><strong>INVITACIONES</strong><span>{invitations.length} PENDIENTE{invitations.length === 1 ? "" : "S"}</span></header>
+                    {invitations.map((invitation) => <article key={invitation.id}>
+                      <a href={`/eventos/${encodeURIComponent(invitation.event.slug)}`} onClick={() => setAccountOpen(false)}>{invitation.event.title}</a>
+                      <strong>{invitation.team_tag ? `[${invitation.team_tag}] ` : ""}{invitation.team_name}</strong>
+                      <small>Invita {invitation.captain.name}</small>
+                      <div><button type="button" disabled={respondingInvitation === invitation.id} onClick={() => void respondToInvitation(invitation, "accept")}>ACEPTAR</button><button type="button" disabled={respondingInvitation === invitation.id} onClick={() => void respondToInvitation(invitation, "reject")}>RECHAZAR</button></div>
+                    </article>)}
+                  </section>}
+                  {invitationFeedback && <p className="account-invitation-feedback" role="status">{invitationFeedback}</p>}
                   <a href={user.minecraft_uuid ? `/players/${user.minecraft_uuid}` : "/"} role="menuitem" onClick={() => setAccountOpen(false)}>PERFIL</a>
                   <button type="button" role="menuitem" onClick={() => void logout()}>CERRAR SESIÓN</button>
                   {(user.permissions ?? []).some((permission) => ["events.manage", "content.manage"].includes(permission)) && <a href="/staff/contenido" role="menuitem" onClick={() => setAccountOpen(false)}>PANEL DE CONTENIDO</a>}

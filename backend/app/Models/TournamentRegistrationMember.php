@@ -9,12 +9,15 @@ class TournamentRegistrationMember extends Model
 {
     protected $fillable = [
         'content_id', 'user_id', 'discord_id', 'discord_username', 'minecraft_uuid', 'minecraft_username',
-        'is_verified', 'role', 'position',
+        'is_verified', 'role', 'invitation_status', 'responded_at', 'position',
     ];
 
     protected function casts(): array
     {
-        return ['is_verified' => 'boolean'];
+        return [
+            'is_verified' => 'boolean',
+            'responded_at' => 'datetime',
+        ];
     }
 
     public function registration(): BelongsTo

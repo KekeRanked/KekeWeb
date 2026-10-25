@@ -7,11 +7,10 @@ use App\Models\Minecraft\RankedPlayer;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\TournamentRegistration;
+use App\Models\TournamentRegistrationMember;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\Request as ClientRequest;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -58,30 +57,31 @@ class TournamentRegistrationTest extends TestCase
         ]);
         $this->verifiedPlayer($captain);
         $this->verifiedPlayer($teammate);
-        RankedPlayer::query()->create([
+        $pluginUser = User::factory()->create([
             'minecraft_uuid' => '77777777-7777-4777-8777-777777777777',
             'minecraft_username' => 'PluginOnly',
             'discord_id' => '100000000000000007',
-            'is_verified' => true,
         ]);
-        $extraMembers = $this->pluginMembers(3, 'ExtraLinked');
+        $this->verifiedPlayer($pluginUser);
+        $extraMembers = $this->registeredMembers(3, 'ExtraLinked');
 
         $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Team Cupcake',
             'team_tag' => 'CAKE',
             'members' => [
-                ['minecraft_uuid' => $teammate->minecraft_uuid, 'minecraft_username' => $teammate->minecraft_username],
-                ['minecraft_uuid' => '77777777-7777-4777-8777-777777777777', 'minecraft_username' => 'PluginOnly'],
+                ['user_id' => $teammate->id, 'minecraft_uuid' => $teammate->minecraft_uuid, 'minecraft_username' => $teammate->minecraft_username],
+                ['user_id' => $pluginUser->id, 'minecraft_uuid' => $pluginUser->minecraft_uuid, 'minecraft_username' => $pluginUser->minecraft_username],
                 ...$extraMembers,
             ],
         ])->assertCreated()
             ->assertJsonPath('data.team_name', 'Team Cupcake')
             ->assertJsonPath('data.members.0.role', 'captain')
             ->assertJsonPath('data.members.1.is_verified', true)
+            ->assertJsonPath('data.members.1.invitation_status', 'pending')
             ->assertJsonPath('data.members.1.discord_username', 'linked.mate')
             ->assertJsonPath('data.members.2.minecraft_username', 'PluginOnly')
             ->assertJsonPath('data.members.2.discord_id', '100000000000000007')
-            ->assertJsonPath('data.members.2.user_id', null);
+            ->assertJsonPath('data.members.2.user_id', $pluginUser->id);
 
         $this->assertDatabaseHas('tournament_registrations', [
             'content_id' => $event->id,
@@ -132,6 +132,7 @@ class TournamentRegistrationTest extends TestCase
             'minecraft_username' => $occupiedPlayer->minecraft_username,
             'is_verified' => true,
             'role' => 'member',
+            'invitation_status' => 'accepted',
             'position' => 1,
         ]);
 
@@ -141,12 +142,12 @@ class TournamentRegistrationTest extends TestCase
             'discord_id' => '100000000000000056',
         ]);
         $this->verifiedPlayer($secondCaptain);
-        $extraMembers = $this->pluginMembers(4, 'ConflictExtra');
+        $extraMembers = $this->registeredMembers(4, 'ConflictExtra');
 
         $this->actingAs($secondCaptain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Segundo Equipo',
             'members' => [
-                ['minecraft_uuid' => $occupiedPlayer->minecraft_uuid, 'minecraft_username' => $occupiedPlayer->minecraft_username],
+                ['user_id' => $occupiedPlayer->id, 'minecraft_uuid' => $occupiedPlayer->minecraft_uuid, 'minecraft_username' => $occupiedPlayer->minecraft_username],
                 ...$extraMembers,
             ],
         ])->assertUnprocessable()
@@ -156,16 +157,8 @@ class TournamentRegistrationTest extends TestCase
         $this->assertDatabaseMissing('tournament_registrations', ['team_name' => 'Segundo Equipo']);
     }
 
-    public function test_captain_can_use_manual_discord_and_edit_until_registration_closes(): void
+    public function test_unregistered_members_cannot_be_added_manually(): void
     {
-        Http::fake([
-            'api.mojang.com/users/profiles/minecraft/*' => function (ClientRequest $request) {
-                $username = rawurldecode(basename($request->url()));
-
-                return Http::response(['id' => md5(strtolower($username)), 'name' => $username], 200);
-            },
-        ]);
-
         $event = $this->tournament();
         $captain = User::factory()->create([
             'minecraft_uuid' => 'abababab-abab-4bab-8bab-abababababab',
@@ -181,24 +174,10 @@ class TournamentRegistrationTest extends TestCase
         $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Manual Team',
             'members' => $members,
-        ])->assertCreated()
-            ->assertJsonPath('data.members.1.minecraft_username', 'Premium1')
-            ->assertJsonPath('data.members.1.discord_username', 'manual.user1')
-            ->assertJsonPath('data.members.1.is_verified', false);
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('members.0.user_id');
 
-        $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
-            'team_name' => 'Manual Team Updated',
-            'members' => $members,
-        ])->assertOk()->assertJsonPath('data.team_name', 'Manual Team Updated');
-
-        $metadata = $event->metadata;
-        $metadata['registration_open'] = false;
-        $event->update(['metadata' => $metadata]);
-
-        $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
-            'team_name' => 'Closed Edit',
-            'members' => $members,
-        ])->assertUnprocessable();
+        $this->assertDatabaseMissing('tournament_registrations', ['team_name' => 'Manual Team']);
     }
 
     public function test_captain_can_delete_own_team_only_while_registration_is_open(): void
@@ -280,7 +259,7 @@ class TournamentRegistrationTest extends TestCase
         $this->assertDatabaseMissing('tournament_registrations', ['id' => $registration->id]);
     }
 
-    public function test_search_reads_verified_discord_links_directly_from_rankedminecraft(): void
+    public function test_search_only_returns_users_registered_on_the_web(): void
     {
         $event = $this->tournament();
         $captain = User::factory()->create();
@@ -301,16 +280,159 @@ class TournamentRegistrationTest extends TestCase
         $this->actingAs($captain)
             ->getJson("/api/events/{$event->slug}/registration-players?q=Search")
             ->assertOk()
-            ->assertJsonCount(2, 'data')
+            ->assertJsonCount(1, 'data')
             ->assertJsonFragment([
                 'minecraft_username' => 'Searchable',
                 'discord_username' => 'searchable.discord',
             ])
-            ->assertJsonFragment([
-                'minecraft_username' => 'SearchPluginOnly',
-                'discord_id' => '100000000000000005',
-                'user_id' => null,
-            ]);
+            ->assertJsonMissing(['minecraft_username' => 'SearchPluginOnly']);
+    }
+
+    public function test_invitation_persists_until_member_accepts_it(): void
+    {
+        $event = $this->tournament();
+        $captain = User::factory()->create([
+            'minecraft_uuid' => '10101010-1010-4010-8010-101010101010',
+            'minecraft_username' => 'InviteCaptain',
+            'discord_id' => '100000000000000101',
+        ]);
+        $invitee = User::factory()->create([
+            'minecraft_uuid' => '20202020-2020-4020-8020-202020202020',
+            'minecraft_username' => 'InvitedPlayer',
+            'discord_id' => '100000000000000202',
+        ]);
+        $this->verifiedPlayer($captain);
+        $this->verifiedPlayer($invitee);
+        $otherMembers = $this->registeredMembers(4, 'InviteExtra');
+
+        $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
+            'team_name' => 'Invitation Team',
+            'members' => [
+                ['user_id' => $invitee->id, 'minecraft_uuid' => $invitee->minecraft_uuid, 'minecraft_username' => $invitee->minecraft_username],
+                ...$otherMembers,
+            ],
+        ])->assertCreated();
+
+        $invitation = TournamentRegistrationMember::query()
+            ->where('user_id', $invitee->id)
+            ->firstOrFail();
+
+        $this->actingAs($invitee)->getJson('/api/tournament-invitations')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.team_name', 'Invitation Team')
+            ->assertJsonPath('data.0.event.slug', $event->slug);
+
+        // A new authenticated request (equivalent to returning after logout)
+        // still reads the pending invitation from the database.
+        $this->actingAs($invitee)->getJson('/api/tournament-invitations')
+            ->assertJsonCount(1, 'data');
+
+        $this->actingAs($invitee)->postJson("/api/tournament-invitations/{$invitation->id}/respond", [
+            'action' => 'accept',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('tournament_registration_members', [
+            'id' => $invitation->id,
+            'user_id' => $invitee->id,
+            'invitation_status' => 'accepted',
+        ]);
+
+        $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
+            'team_name' => 'Invitation Team Updated',
+            'members' => [
+                ['user_id' => $invitee->id, 'minecraft_uuid' => $invitee->minecraft_uuid, 'minecraft_username' => $invitee->minecraft_username],
+                ...$otherMembers,
+            ],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('tournament_registration_members', [
+            'id' => $invitation->id,
+            'user_id' => $invitee->id,
+            'invitation_status' => 'accepted',
+        ]);
+        $this->actingAs($invitee)->getJson('/api/tournament-invitations')
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_accepting_one_team_rejects_other_pending_invitations_for_same_tournament(): void
+    {
+        $event = $this->tournament();
+        $invitee = User::factory()->create();
+        $firstTeam = TournamentRegistration::query()->create([
+            'content_id' => $event->id,
+            'captain_id' => User::factory()->create()->id,
+            'team_name' => 'First Choice',
+            'status' => 'pending',
+        ]);
+        $secondTeam = TournamentRegistration::query()->create([
+            'content_id' => $event->id,
+            'captain_id' => User::factory()->create()->id,
+            'team_name' => 'Second Choice',
+            'status' => 'pending',
+        ]);
+        $memberData = [
+            'content_id' => $event->id,
+            'user_id' => $invitee->id,
+            'minecraft_uuid' => '40404040-4040-4040-8040-404040404040',
+            'minecraft_username' => 'MultipleInvite',
+            'is_verified' => true,
+            'role' => 'member',
+            'invitation_status' => 'pending',
+            'position' => 2,
+        ];
+        $acceptedInvitation = $firstTeam->members()->create($memberData);
+        $rejectedInvitation = $secondTeam->members()->create($memberData);
+
+        $this->actingAs($invitee)->postJson("/api/tournament-invitations/{$acceptedInvitation->id}/respond", [
+            'action' => 'accept',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('tournament_registration_members', [
+            'id' => $acceptedInvitation->id,
+            'invitation_status' => 'accepted',
+        ]);
+        $this->assertDatabaseHas('tournament_registration_members', [
+            'id' => $rejectedInvitation->id,
+            'invitation_status' => 'rejected',
+        ]);
+    }
+
+    public function test_only_invited_member_can_respond_and_rejection_is_persisted(): void
+    {
+        $event = $this->tournament();
+        $captain = User::factory()->create();
+        $invitee = User::factory()->create();
+        $stranger = User::factory()->create();
+        $registration = TournamentRegistration::query()->create([
+            'content_id' => $event->id,
+            'captain_id' => $captain->id,
+            'team_name' => 'Private Invitation',
+            'status' => 'pending',
+        ]);
+        $invitation = $registration->members()->create([
+            'content_id' => $event->id,
+            'user_id' => $invitee->id,
+            'minecraft_uuid' => '30303030-3030-4030-8030-303030303030',
+            'minecraft_username' => 'PrivateInvitee',
+            'is_verified' => true,
+            'role' => 'member',
+            'invitation_status' => 'pending',
+            'position' => 2,
+        ]);
+
+        $this->actingAs($stranger)->postJson("/api/tournament-invitations/{$invitation->id}/respond", [
+            'action' => 'accept',
+        ])->assertForbidden();
+
+        $this->actingAs($invitee)->postJson("/api/tournament-invitations/{$invitation->id}/respond", [
+            'action' => 'reject',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('tournament_registration_members', [
+            'id' => $invitation->id,
+            'invitation_status' => 'rejected',
+        ]);
     }
 
     public function test_public_can_list_registered_teams_without_private_notes(): void
@@ -336,14 +458,14 @@ class TournamentRegistrationTest extends TestCase
         ]);
         $this->verifiedPlayer($firstMember);
         $this->verifiedPlayer($secondMember);
-        $extraMembers = $this->pluginMembers(3, 'PublicExtra');
+        $extraMembers = $this->registeredMembers(3, 'PublicExtra');
 
         $this->actingAs($captain)->postJson("/api/events/{$event->slug}/registration", [
             'team_name' => 'Visible Team',
             'notes' => 'Esta nota solo corresponde al staff.',
             'members' => [
-                ['minecraft_uuid' => $firstMember->minecraft_uuid, 'minecraft_username' => $firstMember->minecraft_username],
-                ['minecraft_uuid' => $secondMember->minecraft_uuid, 'minecraft_username' => $secondMember->minecraft_username],
+                ['user_id' => $firstMember->id, 'minecraft_uuid' => $firstMember->minecraft_uuid, 'minecraft_username' => $firstMember->minecraft_username],
+                ['user_id' => $secondMember->id, 'minecraft_uuid' => $secondMember->minecraft_uuid, 'minecraft_username' => $secondMember->minecraft_username],
                 ...$extraMembers,
             ],
         ])->assertCreated();
@@ -387,19 +509,19 @@ class TournamentRegistrationTest extends TestCase
         ]);
     }
 
-    private function pluginMembers(int $count, string $prefix): array
+    private function registeredMembers(int $count, string $prefix): array
     {
         return collect(range(1, $count))->map(function (int $index) use ($prefix): array {
             $suffix = str_pad((string) $index, 12, '0', STR_PAD_LEFT);
             $uuid = "aaaaaaaa-aaaa-4aaa-8aaa-{$suffix}";
-            RankedPlayer::query()->create([
+            $user = User::factory()->create([
                 'minecraft_uuid' => $uuid,
                 'minecraft_username' => "{$prefix}{$index}",
                 'discord_id' => '20000000'.str_pad((string) $index, 10, '0', STR_PAD_LEFT),
-                'is_verified' => true,
             ]);
+            $this->verifiedPlayer($user);
 
-            return ['minecraft_uuid' => $uuid, 'minecraft_username' => "{$prefix}{$index}"];
+            return ['user_id' => $user->id, 'minecraft_uuid' => $uuid, 'minecraft_username' => "{$prefix}{$index}"];
         })->all();
     }
 }

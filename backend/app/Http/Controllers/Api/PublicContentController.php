@@ -93,7 +93,7 @@ class PublicContentController extends Controller
             ->where('content_id', $content->id)
             ->whereIn('status', ['pending', 'approved'])
             ->with([
-                'members:id,registration_id,user_id,discord_id,discord_username,minecraft_uuid,minecraft_username,is_verified,role,position',
+                'members:id,registration_id,user_id,discord_id,discord_username,minecraft_uuid,minecraft_username,is_verified,role,invitation_status,position',
             ])
             ->oldest()
             ->get(['id', 'team_name', 'team_tag', 'status', 'created_at']);

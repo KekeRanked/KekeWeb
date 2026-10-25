@@ -208,12 +208,62 @@ html[data-theme="light"] .theme-toggle-track i {
   top: calc(100% + 1px);
   right: 0;
   z-index: 20;
-  min-width: 220px;
+  width: min(320px, calc(100vw - 24px));
+  min-width: 0;
   padding: 8px;
   border: 1px solid var(--line);
   background: #171713;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
+.account-invitation-badge {
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #171713;
+  font: 850 8px/1 var(--font-geist-mono), monospace;
+}
+.account-invitations {
+  display: grid;
+  gap: 7px;
+  padding: 8px 5px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.account-invitations > header {
+  display: flex;
+  justify-content: space-between;
+  color: var(--amber);
+  font: 800 8px/1 var(--font-geist-mono), monospace;
+  letter-spacing: 0.1em;
+}
+.account-invitations article {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid #34332d;
+  background: #11110e;
+}
+.account-invitations article > a {
+  padding: 0;
+  color: #77736a;
+  font-size: 7px;
+}
+.account-invitations article > strong { color: var(--paper); font-size: 11px; }
+.account-invitations article > small { color: #8b877e; font-size: 8px; }
+.account-invitations article > div { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.account-invitations article > div > button {
+  margin: 0;
+  padding: 9px 6px;
+  border: 1px solid rgba(255, 177, 27, 0.45);
+  color: var(--amber);
+  text-align: center;
+}
+.account-invitations article > div > button:last-child { border-color: #3b3933; color: #8b877e; }
+.account-invitations article > div > button:disabled { opacity: 0.45; cursor: wait; }
+.account-invitation-feedback { margin: 6px 5px; padding: 8px; color: #aaa69b; font-size: 9px; }
 .account-role {
   display: block;
   padding: 5px 13px 9px;
@@ -2615,6 +2665,22 @@ html[data-theme="light"] .theme-toggle-track i {
   color: var(--amber);
   cursor: pointer;
 }
+.registration-member > .registration-member-actions {
+  align-items: flex-end;
+  gap: 7px;
+}
+.registration-member-actions button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--amber);
+  font: 750 7px/1 var(--font-geist-mono), monospace;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.registration-invitation-status { color: #d19a3b; font: 800 7px/1 var(--font-geist-mono), monospace; letter-spacing: 0.08em; }
+.registration-invitation-status.is-accepted { color: #9acb62; }
+.registration-invitation-status.is-rejected { color: #d86f62; }
 .registration-player-search {
   display: grid;
   gap: 8px;

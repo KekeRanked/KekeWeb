@@ -13,7 +13,6 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -43,37 +42,27 @@ class TournamentRegistrationController extends Controller
             return response()->json(['data' => []]);
         }
 
-        try {
-            $players = RankedPlayer::query()
-                ->where('is_verified', 1)
-                ->whereNotNull('discord_id')
-                ->where('discord_id', '<>', '')
-                ->where(function ($query) use ($term): void {
-                    $query->where('minecraft_username', 'like', "%{$term}%")
-                        ->orWhere('discord_id', 'like', "%{$term}%")
-                        ->orWhere('minecraft_uuid', 'like', "%{$term}%");
-                })
-                ->orderBy('minecraft_username')
-                ->limit(20)
-                ->get(['minecraft_uuid', 'minecraft_username', 'discord_id']);
-        } catch (Throwable $exception) {
-            return response()->json(['message' => 'No se pudo comprobar la base de jugadores verificados.'], 503);
-        }
+        $users = User::query()
+            ->whereNotNull('minecraft_uuid')
+            ->whereNotNull('minecraft_username')
+            ->whereNotNull('discord_id')
+            ->where(function ($query) use ($term): void {
+                $query->where('minecraft_username', 'like', "%{$term}%")
+                    ->orWhere('discord_username', 'like', "%{$term}%")
+                    ->orWhere('discord_id', 'like', "%{$term}%")
+                    ->orWhere('minecraft_uuid', 'like', "%{$term}%");
+            })
+            ->orderBy('minecraft_username')
+            ->limit(20)
+            ->get(['id', 'minecraft_uuid', 'minecraft_username', 'discord_id', 'discord_username']);
 
-        $usersByDiscord = User::query()
-            ->whereIn('discord_id', $players->pluck('discord_id')->filter())
-            ->get(['id', 'discord_id', 'discord_username'])
-            ->keyBy('discord_id');
-
-        return response()->json(['data' => $players->map(function (RankedPlayer $player) use ($usersByDiscord): array {
-            $user = $usersByDiscord->get((string) $player->discord_id);
-
+        return response()->json(['data' => $users->map(function (User $user): array {
             return [
-                'user_id' => $user?->id,
-                'minecraft_uuid' => $player->minecraft_uuid,
-                'minecraft_username' => $player->minecraft_username,
-                'discord_id' => (string) $player->discord_id,
-                'discord_username' => $user?->discord_username,
+                'user_id' => $user->id,
+                'minecraft_uuid' => $user->minecraft_uuid,
+                'minecraft_username' => $user->minecraft_username,
+                'discord_id' => (string) $user->discord_id,
+                'discord_username' => $user->discord_username,
             ];
         })->values()]);
     }
@@ -93,10 +82,9 @@ class TournamentRegistrationController extends Controller
             'team_tag' => ['nullable', 'string', 'min:2', 'max:8', 'regex:/^[A-Za-z0-9_-]+$/'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'members' => ['required', 'array', 'min:'.($minimumTeamSize - 1), 'max:'.($teamSize - 1)],
-            'members.*.minecraft_uuid' => ['nullable', 'uuid', 'distinct'],
+            'members.*.user_id' => ['required', 'integer', 'distinct', 'exists:users,id'],
+            'members.*.minecraft_uuid' => ['required', 'uuid', 'distinct'],
             'members.*.minecraft_username' => ['required', 'string', 'min:2', 'max:16', 'regex:/^[A-Za-z0-9_]+$/'],
-            'members.*.discord_id' => ['nullable', 'string', 'max:20', 'distinct'],
-            'members.*.discord_username' => ['nullable', 'string', 'min:2', 'max:64'],
         ], [
             'team_tag.regex' => 'La etiqueta solo puede contener letras, números, guion o guion bajo.',
             'members.min' => "Debes registrar al menos {$minimumTeamSize} jugadores contando al capitán.",
@@ -109,28 +97,10 @@ class TournamentRegistrationController extends Controller
             throw ValidationException::withMessages(['captain' => 'Tu cuenta debe tener un jugador de Minecraft verificado para inscribir un equipo.']);
         }
 
-        $submittedUuids = collect($data['members'])
-            ->pluck('minecraft_uuid')
-            ->filter()
-            ->map(fn ($uuid) => strtolower((string) $uuid))
-            ->values();
-        try {
-            $verifiedPlayers = $submittedUuids->isEmpty()
-                ? collect()
-                : RankedPlayer::query()
-                    ->where('is_verified', 1)
-                    ->whereNotNull('discord_id')
-                    ->whereIn('minecraft_uuid', $submittedUuids)
-                    ->get(['minecraft_uuid', 'minecraft_username', 'discord_id'])
-                    ->keyBy(fn (RankedPlayer $player): string => strtolower((string) $player->minecraft_uuid));
-        } catch (Throwable $exception) {
-            throw ValidationException::withMessages(['members' => 'No se pudo comprobar la base de jugadores verificados.']);
-        }
-
-        $usersByDiscord = User::query()
-            ->whereIn('discord_id', $verifiedPlayers->pluck('discord_id')->filter())
-            ->get(['id', 'discord_id', 'discord_username'])
-            ->keyBy('discord_id');
+        $registeredUsers = User::query()
+            ->whereIn('id', collect($data['members'])->pluck('user_id'))
+            ->get(['id', 'discord_id', 'discord_username', 'minecraft_uuid', 'minecraft_username'])
+            ->keyBy('id');
 
         $members = collect([[
             'user_id' => $user->id,
@@ -140,42 +110,33 @@ class TournamentRegistrationController extends Controller
             'minecraft_username' => $captain->minecraft_username,
             'is_verified' => true,
             'role' => 'captain',
+            'invitation_status' => 'accepted',
+            'responded_at' => now(),
             'position' => 1,
         ]]);
 
         foreach ($data['members'] as $index => $submitted) {
-            $submittedUuid = strtolower((string) ($submitted['minecraft_uuid'] ?? ''));
-            $verifiedPlayer = $submittedUuid ? $verifiedPlayers->get($submittedUuid) : null;
-
-            if ($verifiedPlayer) {
-                $referenced = $usersByDiscord->get((string) $verifiedPlayer->discord_id);
-                $members->push([
-                    'user_id' => $referenced?->id,
-                    'discord_id' => (string) $verifiedPlayer->discord_id,
-                    'discord_username' => $referenced?->discord_username,
-                    'minecraft_uuid' => $this->normalizeMinecraftUuid($verifiedPlayer->minecraft_uuid),
-                    'minecraft_username' => $verifiedPlayer->minecraft_username,
-                    'is_verified' => true,
-                    'role' => 'member',
-                    'position' => $index + 2,
+            $registeredUser = $registeredUsers->get((int) $submitted['user_id']);
+            $submittedUuid = $this->normalizeMinecraftUuid((string) $submitted['minecraft_uuid']);
+            if (! $registeredUser
+                || ! $registeredUser->minecraft_uuid
+                || ! $registeredUser->discord_id
+                || $this->normalizeMinecraftUuid($registeredUser->minecraft_uuid) !== $submittedUuid) {
+                throw ValidationException::withMessages([
+                    "members.{$index}.user_id" => 'Selecciona un usuario registrado desde los resultados de búsqueda.',
                 ]);
-                continue;
-            }
-
-            $profile = $this->premiumMinecraftProfile((string) $submitted['minecraft_username']);
-            $discordUsername = ltrim(trim((string) ($submitted['discord_username'] ?? '')), '@');
-            if ($discordUsername === '') {
-                throw ValidationException::withMessages(["members.{$index}.discord_username" => 'Escribe el usuario de Discord de este integrante.']);
             }
 
             $members->push([
-                'user_id' => null,
-                'discord_id' => null,
-                'discord_username' => $discordUsername,
-                'minecraft_uuid' => $profile['uuid'],
-                'minecraft_username' => $profile['name'],
-                'is_verified' => false,
+                'user_id' => $registeredUser->id,
+                'discord_id' => (string) $registeredUser->discord_id,
+                'discord_username' => $registeredUser->discord_username,
+                'minecraft_uuid' => $submittedUuid,
+                'minecraft_username' => $registeredUser->minecraft_username,
+                'is_verified' => true,
                 'role' => 'member',
+                'invitation_status' => 'pending',
+                'responded_at' => null,
                 'position' => $index + 2,
             ]);
         }
@@ -196,25 +157,46 @@ class TournamentRegistrationController extends Controller
                 $existing = TournamentRegistration::query()
                     ->where('content_id', $content->id)
                     ->where('captain_id', $user->id)
+                    ->with('members:id,registration_id,user_id,invitation_status,responded_at')
                     ->first();
                 $maxTeams = (int) data_get($content->metadata, 'team_count', 0);
                 if (! $existing && $maxTeams > 0 && TournamentRegistration::query()->where('content_id', $content->id)->count() >= $maxTeams) {
                     throw ValidationException::withMessages(['team_name' => 'El torneo ya alcanzó el máximo de equipos.']);
                 }
 
-                $incomingUuids = $members->pluck('minecraft_uuid')
+                $previousMembers = $existing
+                    ? $existing->members->keyBy('user_id')
+                    : collect();
+                $membersToSave = $members->map(function (array $member) use ($previousMembers): array {
+                    if ($member['role'] === 'captain') {
+                        return $member;
+                    }
+
+                    $previous = $previousMembers->get($member['user_id']);
+                    if ($previous) {
+                        $member['invitation_status'] = $previous->invitation_status;
+                        $member['responded_at'] = $previous->responded_at;
+                    }
+
+                    return $member;
+                });
+
+                $incomingUuids = $membersToSave->pluck('minecraft_uuid')
                     ->filter()
                     ->map(fn ($uuid): string => $this->normalizeMinecraftUuid((string) $uuid))
                     ->flip();
                 $occupiedMember = TournamentRegistrationMember::query()
                     ->where('content_id', $content->id)
+                    ->where('invitation_status', 'accepted')
                     ->when($existing, fn ($query) => $query->where('registration_id', '<>', $existing->id))
                     ->with('registration:id,team_name')
                     ->get(['id', 'registration_id', 'minecraft_uuid', 'minecraft_username'])
                     ->first(fn (TournamentRegistrationMember $member): bool => $member->minecraft_uuid
                         && $incomingUuids->has($this->normalizeMinecraftUuid($member->minecraft_uuid)));
                 if ($occupiedMember) {
-                    $teamName = $occupiedMember->registration?->team_name ?? 'otro equipo';
+                    $teamName = $occupiedMember->registration
+                        ? $occupiedMember->registration->team_name
+                        : 'otro equipo';
                     throw ValidationException::withMessages([
                         'members' => "{$occupiedMember->minecraft_username} ya está inscrito en {$teamName}. Un jugador sólo puede pertenecer a un equipo por torneo.",
                     ]);
@@ -230,9 +212,20 @@ class TournamentRegistrationController extends Controller
                     'status' => $existing && $existing->status === 'rejected' ? 'pending' : ($existing ? $existing->status : 'pending'),
                 ])->save();
 
-                $registration->members()->delete();
-                foreach ($members as $member) {
-                    $registration->members()->create($member + ['content_id' => $content->id]);
+                $memberUserIds = $membersToSave->pluck('user_id')->filter()->values();
+                $registration->members()->whereNotIn('user_id', $memberUserIds)->delete();
+                $registration->members()->whereIn('user_id', $memberUserIds)->update([
+                    'position' => DB::raw('position + 1000'),
+                ]);
+                foreach ($membersToSave as $member) {
+                    $storedMember = $existing
+                        ? $existing->members->firstWhere('user_id', $member['user_id'])
+                        : null;
+                    if ($storedMember) {
+                        $storedMember->fill($member + ['content_id' => $content->id])->save();
+                    } else {
+                        $registration->members()->create($member + ['content_id' => $content->id]);
+                    }
                 }
 
                 return $registration->load('members');
@@ -305,35 +298,6 @@ class TournamentRegistrationController extends Controller
         } catch (Throwable $exception) {
             throw ValidationException::withMessages(['members' => 'No se pudo comprobar la base de jugadores verificados.']);
         }
-    }
-
-    private function premiumMinecraftProfile(string $username): array
-    {
-        try {
-            $response = Http::acceptJson()
-                ->timeout(8)
-                ->get('https://api.mojang.com/users/profiles/minecraft/'.rawurlencode($username));
-        } catch (Throwable $exception) {
-            throw ValidationException::withMessages(['members' => 'No se pudo validar los nicks premium de Minecraft. Intenta nuevamente.']);
-        }
-
-        if ($response->status() === 404 || $response->status() === 204) {
-            throw ValidationException::withMessages(['members' => "El nick {$username} no corresponde a una cuenta premium de Minecraft."]);
-        }
-        if (! $response->successful()) {
-            throw ValidationException::withMessages(['members' => 'Minecraft no permitió validar los nicks en este momento. Intenta nuevamente.']);
-        }
-
-        $id = strtolower((string) $response->json('id'));
-        $name = (string) $response->json('name');
-        if (! preg_match('/^[0-9a-f]{32}$/', $id) || $name === '') {
-            throw ValidationException::withMessages(['members' => "El nick {$username} no corresponde a una cuenta premium de Minecraft."]);
-        }
-
-        return [
-            'uuid' => $this->normalizeMinecraftUuid($id),
-            'name' => $name,
-        ];
     }
 
     private function normalizeMinecraftUuid(string $uuid): string
