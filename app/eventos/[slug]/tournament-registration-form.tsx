@@ -269,7 +269,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
               <div className="registration-member-field">
                 <label><small>MINECRAFT</small><input required autoComplete="off" maxLength={16} pattern="[A-Za-z0-9_]+" value={slot.minecraft_username} onFocus={() => { if (activeSearchIndex !== index && !slot.is_verified) { setActiveSearchIndex(index); setResults([]); } }} onChange={(event) => setMemberQuery(index, event.target.value)} placeholder="Nick de Minecraft" aria-label={`Nick del integrante ${index + 2}`} /></label>
                 <label><small>DISCORD</small><input readOnly value={linkedDiscord} placeholder="Se autocompleta al seleccionar" aria-label={`Discord del integrante ${index + 2}`} /></label>
-                {!slot.is_verified && <small>{searching && activeSearchIndex === index ? "BUSCANDO EN RANKEDMINECRAFT…" : "SELECCIONA EL RESULTADO PARA VINCULAR AMBAS CUENTAS"}</small>}
+                {!slot.is_verified && searching && activeSearchIndex === index && <small>BUSCANDO EN RANKEDMINECRAFT…</small>}
                 {activeSearchIndex === index && activeQuery.length >= 2 && !searching && <div className="registration-member-suggestions">{results.length ? results.map((player) => {
                   const alreadySelected = selectedUuids.has(player.minecraft_uuid);
                   return <button type="button" key={player.minecraft_uuid} disabled={alreadySelected} onClick={() => referencePlayer(index, player)}>
@@ -279,7 +279,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
                   </button>;
                 }) : <p>NO SE ENCONTRÓ UN JUGADOR VERIFICADO CON DISCORD VINCULADO</p>}</div>}
               </div>
-              {slot.is_verified ? <button type="button" onClick={() => setMemberQuery(index, "")}>CAMBIAR</button> : <b>POR VINCULAR</b>}
+              {slot.is_verified && <button type="button" onClick={() => setMemberQuery(index, "")}>CAMBIAR</button>}
             </div>;
           })}</div>
 
