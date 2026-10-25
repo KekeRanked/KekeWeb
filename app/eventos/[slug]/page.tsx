@@ -15,7 +15,7 @@ type EventDetail = {
 async function requestOrigin() {
   const requestHeaders = await headers();
   const host = (requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "keke.live").split(",")[0].trim();
-  const protocol = (requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")).split(",")[0].trim();
+  const protocol = host.startsWith("localhost") ? "http" : "https";
   return new URL(`${protocol}://${host}`);
 }
 
@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const title = `${event.title} — KEKE`;
   const facts = [event.metadata?.format, event.metadata?.date, event.metadata?.prize ? `Premio: ${event.metadata.prize}` : null].filter(Boolean).join(" · ");
-  const description = [event.excerpt?.trim(), facts].filter(Boolean).join(" ").slice(0, 300);
+  const description = [facts, event.excerpt?.trim()].filter(Boolean).join(". ").slice(0, 300);
   const eventUrl = new URL(`/eventos/${encodeURIComponent(slug)}`, origin);
   const imageUrl = new URL(event.cover_image || "/og.png", origin);
   if (event.updated_at) imageUrl.searchParams.set("v", event.updated_at);

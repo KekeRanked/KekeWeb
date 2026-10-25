@@ -40,6 +40,15 @@ test("server-renders the KEKE homepage", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/i);
 });
 
+test("keeps public social metadata on HTTPS", async () => {
+  const [layout, eventPage] = await Promise.all([
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/eventos/[slug]/page.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(layout, /host\.startsWith\("localhost"\) \? "http" : "https"/);
+  assert.match(eventPage, /host\.startsWith\("localhost"\) \? "http" : "https"/);
+});
+
 test("keeps tournament registration wired to the public event and staff form", async () => {
   const [eventPage, eventDetail, registrationForm, teamsPanel, staffPage, migration, discordMigration, registrationController] = await Promise.all([
     readFile(new URL("../app/eventos/[slug]/page.tsx", import.meta.url), "utf8"),
