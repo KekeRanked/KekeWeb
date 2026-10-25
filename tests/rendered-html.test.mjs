@@ -41,7 +41,8 @@ test("server-renders the KEKE homepage", async () => {
 });
 
 test("keeps tournament registration wired to the public event and staff form", async () => {
-  const [eventDetail, registrationForm, teamsPanel, staffPage, migration, discordMigration, registrationController] = await Promise.all([
+  const [eventPage, eventDetail, registrationForm, teamsPanel, staffPage, migration, discordMigration, registrationController] = await Promise.all([
+    readFile(new URL("../app/eventos/[slug]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/eventos/[slug]/event-detail-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/eventos/[slug]/tournament-registration-form.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/eventos/[slug]/tournament-teams.tsx", import.meta.url), "utf8"),
@@ -51,6 +52,10 @@ test("keeps tournament registration wired to the public event and staff form", a
     readFile(new URL("../backend/app/Http/Controllers/Api/TournamentRegistrationController.php", import.meta.url), "utf8"),
   ]);
 
+  assert.match(eventPage, /event\.cover_image \|\| "\/og\.png"/);
+  assert.match(eventPage, /openGraph:/);
+  assert.match(eventPage, /summary_large_image/);
+  assert.match(eventPage, /KEKE Ranked Network/);
   assert.match(eventDetail, /metadata\.type === "tournament"/);
   assert.match(eventDetail, /<TournamentRegistrationForm slug=\{slug\}/);
   assert.match(eventDetail, /INFORMACIÓN/);
