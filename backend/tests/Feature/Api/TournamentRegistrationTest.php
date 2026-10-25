@@ -4,6 +4,9 @@ namespace Tests\Feature\Api;
 
 use App\Models\Content;
 use App\Models\Minecraft\RankedPlayer;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\TournamentRegistration;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -148,6 +151,85 @@ class TournamentRegistrationTest extends TestCase
             'team_name' => 'Closed Edit',
             'members' => $members,
         ])->assertUnprocessable();
+    }
+
+    public function test_captain_can_delete_own_team_only_while_registration_is_open(): void
+    {
+        $event = $this->tournament();
+        $captain = User::factory()->create();
+        $registration = TournamentRegistration::query()->create([
+            'content_id' => $event->id,
+            'captain_id' => $captain->id,
+            'team_name' => 'Equipo Retirable',
+            'status' => 'pending',
+        ]);
+        $registration->members()->create([
+            'content_id' => $event->id,
+            'user_id' => $captain->id,
+            'minecraft_uuid' => '12121212-1212-4212-8212-121212121212',
+            'minecraft_username' => 'DeleteCaptain',
+            'is_verified' => true,
+            'role' => 'captain',
+            'position' => 1,
+        ]);
+
+        $this->actingAs($captain)
+            ->deleteJson("/api/events/{$event->slug}/registration")
+            ->assertOk()
+            ->assertJsonPath('meta.registered_teams', 0)
+            ->assertJsonPath('meta.spots_left', 8);
+
+        $this->assertDatabaseMissing('tournament_registrations', ['id' => $registration->id]);
+        $this->assertDatabaseCount('tournament_registration_members', 0);
+
+        $closedRegistration = TournamentRegistration::query()->create([
+            'content_id' => $event->id,
+            'captain_id' => $captain->id,
+            'team_name' => 'Equipo Cerrado',
+            'status' => 'pending',
+        ]);
+        $metadata = $event->metadata;
+        $metadata['registration_open'] = false;
+        $event->update(['metadata' => $metadata]);
+
+        $this->actingAs($captain)
+            ->deleteJson("/api/events/{$event->slug}/registration")
+            ->assertUnprocessable();
+        $this->assertDatabaseHas('tournament_registrations', ['id' => $closedRegistration->id]);
+    }
+
+    public function test_event_admin_can_delete_any_registered_team(): void
+    {
+        $event = $this->tournament();
+        $captain = User::factory()->create();
+        $registration = TournamentRegistration::query()->create([
+            'content_id' => $event->id,
+            'captain_id' => $captain->id,
+            'team_name' => 'Equipo Administrable',
+            'status' => 'pending',
+        ]);
+        $permission = Permission::query()->create([
+            'key' => 'events.manage',
+            'name' => 'Administrar eventos',
+        ]);
+        $role = Role::query()->create([
+            'key' => 'admin-delete-team',
+            'name' => 'Administrador de equipos',
+            'priority' => 60,
+        ]);
+        $role->permissions()->attach($permission);
+        $admin = User::factory()->create();
+        $admin->roles()->attach($role);
+
+        $this->actingAs($captain)
+            ->deleteJson("/api/admin/events/{$event->slug}/registrations/{$registration->id}")
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->deleteJson("/api/admin/events/{$event->slug}/registrations/{$registration->id}")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('tournament_registrations', ['id' => $registration->id]);
     }
 
     public function test_search_reads_verified_discord_links_directly_from_rankedminecraft(): void

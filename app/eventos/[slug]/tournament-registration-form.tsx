@@ -92,6 +92,7 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
   const [results, setResults] = useState<RegisteredPlayer[]>([]);
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
@@ -255,6 +256,34 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
     }
   }
 
+  async function deleteRegistration() {
+    if (!registration || !window.confirm(`¿Retirar “${registration.team_name}” del torneo? Se borrará toda la alineación y el cupo quedará libre.`)) return;
+    setDeleting(true);
+    setFeedback("");
+    try {
+      const token = await csrf();
+      const response = await fetch(`/api/events/${encodeURIComponent(slug)}/registration`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(errorMessage(payload, "No se pudo borrar el equipo."));
+      const nextMeta = payload.meta as RegistrationMeta;
+      setRegistration(null);
+      setMeta(nextMeta);
+      setTeamName("");
+      setTeamTag("");
+      setNotes("");
+      setSlots(Array.from({ length: Math.max(0, nextMeta.players_per_team - 1) }, emptySlot));
+      setFeedback(payload.message ?? "El equipo fue retirado del torneo.");
+    } catch (reason) {
+      setFeedback(reason instanceof Error ? reason.message : "No se pudo borrar el equipo.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (!authChecked) return <section className="tournament-registration"><p className="history-empty">COMPROBANDO SESIÓN…</p></section>;
 
   if (!user) {
@@ -310,7 +339,10 @@ export function TournamentRegistrationForm({ slug }: { slug: string }) {
 
           <label className="registration-notes">Notas para el staff <small>OPCIONAL</small><textarea maxLength={1000} rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Disponibilidad, suplentes u otra información relevante…" /></label>
           {feedback && <p className="registration-feedback" role="status">{feedback}</p>}
-          <button className="registration-submit" type="submit" disabled={saving}>{saving ? "GUARDANDO…" : registration ? "ACTUALIZAR INSCRIPCIÓN" : "ENVIAR INSCRIPCIÓN"}</button>
+          <div className="registration-actions">
+            <button className="registration-submit" type="submit" disabled={saving || deleting}>{saving ? "GUARDANDO…" : registration ? "ACTUALIZAR INSCRIPCIÓN" : "ENVIAR INSCRIPCIÓN"}</button>
+            {registration && <button className="registration-delete" type="button" disabled={saving || deleting} onClick={deleteRegistration}>{deleting ? "BORRANDO…" : "BORRAR EQUIPO"}</button>}
+          </div>
         </form>
       )}
     </section>

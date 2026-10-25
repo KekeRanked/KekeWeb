@@ -2701,7 +2701,24 @@ html[data-theme="light"] .theme-toggle-track i {
 .registration-status strong { color: var(--amber); font: 850 9px/1 var(--font-geist-mono), monospace; letter-spacing: 0.09em; }
 .registration-status.is-approved { border-color: rgba(146, 198, 82, 0.45); }
 .registration-status.is-approved strong { color: #9acb62; }
+.registration-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 .registration-submit { width: 100%; }
+.registration-delete,
+.tournament-team-title > button {
+  border: 1px solid rgba(213, 76, 61, 0.62);
+  background: transparent;
+  color: #e26b5d;
+  cursor: pointer;
+  font: 800 8px/1 var(--font-geist-mono), monospace;
+  letter-spacing: 0.08em;
+}
+.registration-delete { min-width: 160px; padding: 0 20px; }
+.registration-delete:hover,
+.registration-delete:focus-visible,
+.tournament-team-title > button:hover,
+.tournament-team-title > button:focus-visible { background: rgba(213, 76, 61, 0.1); }
+.registration-delete:disabled,
+.tournament-team-title > button:disabled { cursor: wait; opacity: 0.5; }
 .registration-toggle {
   display: flex !important;
   flex-direction: row !important;
@@ -2880,11 +2897,12 @@ html[data-theme="light"] .event-kind-section.is-tournament {
   border: 1px solid var(--line);
   background: #11110f;
 }
-.tournament-team-title { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; }
+.tournament-team-title { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: start; }
 .tournament-team-title > span { color: var(--amber); font: 800 10px/1 var(--font-geist-mono), monospace; }
 .tournament-team-title h3 { margin: 0 0 7px; font-size: 18px; }
 .tournament-team-title small,
 .tournament-team-roster small { color: #77736a; font: 650 7px/1.2 var(--font-geist-mono), monospace; letter-spacing: 0.08em; }
+.tournament-team-title > button { padding: 8px 9px; }
 .tournament-team-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 7px; }
 .tournament-team-roster > div { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 9px; min-width: 0; }
 .tournament-team-roster img { image-rendering: pixelated; }
@@ -2921,6 +2939,10 @@ html[data-theme="light"] .tournament-sidebar { background: #ede9e0; }
   .tournament-tab-content { padding: 24px 16px; }
   .tournament-sidebar nav button { padding: 0 5px; font-size: 7px; letter-spacing: 0.04em; }
   .tournament-teams-panel > header { align-items: start; flex-direction: column; }
+  .registration-actions { grid-template-columns: 1fr; }
+  .registration-delete { min-height: 44px; }
+  .tournament-team-title { grid-template-columns: 34px minmax(0, 1fr); }
+  .tournament-team-title > button { grid-column: 2; justify-self: start; }
 }
 
 .staff-header {

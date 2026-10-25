@@ -32,6 +32,7 @@ Route::prefix('auth')->group(function (): void {
 Route::prefix('api')->middleware('auth')->group(function (): void {
         Route::get('/events/{content:slug}/registration', [TournamentRegistrationController::class, 'show']);
         Route::post('/events/{content:slug}/registration', [TournamentRegistrationController::class, 'store']);
+        Route::delete('/events/{content:slug}/registration', [TournamentRegistrationController::class, 'destroy']);
         Route::get('/events/{content:slug}/registration-players', [TournamentRegistrationController::class, 'searchPlayers']);
 
         Route::apiResource('/admin/content', ContentAdminController::class)
@@ -42,6 +43,8 @@ Route::prefix('api')->middleware('auth')->group(function (): void {
         Route::get('/admin/event-players', [EventAdminController::class, 'searchVerifiedPlayers'])
             ->middleware('permission:events.manage');
         Route::post('/admin/event-banners', [EventAdminController::class, 'uploadBanner'])
+            ->middleware('permission:events.manage');
+        Route::delete('/admin/events/{content:slug}/registrations/{registration}', [TournamentRegistrationController::class, 'adminDestroy'])
             ->middleware('permission:events.manage');
         Route::apiResource('/admin/events', EventAdminController::class)
             ->parameters(['events' => 'content'])

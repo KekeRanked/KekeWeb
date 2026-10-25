@@ -222,6 +222,33 @@ class TournamentRegistrationController extends Controller
         ], $existing ? 200 : 201);
     }
 
+    public function destroy(Request $request, Content $content): JsonResponse
+    {
+        $this->ensureTournament($content, true);
+        $registration = TournamentRegistration::query()
+            ->where('content_id', $content->id)
+            ->where('captain_id', $request->user()->id)
+            ->firstOrFail();
+
+        $teamName = $registration->team_name;
+        $registration->delete();
+
+        return response()->json([
+            'message' => "El equipo {$teamName} fue retirado del torneo.",
+            'meta' => $this->meta($content),
+        ]);
+    }
+
+    public function adminDestroy(Content $content, TournamentRegistration $registration): JsonResponse
+    {
+        $this->ensureTournament($content);
+        abort_unless($registration->content_id === $content->id, 404);
+
+        $registration->delete();
+
+        return response()->json([], 204);
+    }
+
     private function ensureTournament(Content $content, bool $requireOpen = false): void
     {
         abort_unless(

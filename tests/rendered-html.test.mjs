@@ -62,6 +62,10 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(registrationForm, /Nick premium de Minecraft/);
   assert.match(registrationForm, /Usuario de Discord/);
   assert.match(registrationForm, /minimum_players/);
+  assert.match(registrationForm, /BORRAR EQUIPO/);
+  assert.match(registrationForm, /method: "DELETE"/);
+  assert.match(teamsPanel, /ELIMINAR EQUIPO/);
+  assert.match(teamsPanel, /events\.manage/);
   assert.doesNotMatch(registrationForm, /Se autocompleta al seleccionar/);
   assert.match(registrationForm, /uuid\.replaceAll\("-", ""\)/);
   assert.match(registrationForm, /registration-member-suggestions/);
@@ -87,6 +91,8 @@ test("keeps tournament registration wired to the public event and staff form", a
   assert.match(registrationController, /whereNotNull\('discord_id'\)/);
   assert.match(registrationController, /api\.mojang\.com\/users\/profiles\/minecraft/);
   assert.match(registrationController, /minimum_players' => 6/);
+  assert.match(registrationController, /function destroy/);
+  assert.match(registrationController, /function adminDestroy/);
 });
 
 test("keeps the API proxy resilient when the PHP container is recreated", async () => {
