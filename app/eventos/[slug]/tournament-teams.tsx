@@ -104,11 +104,12 @@ export function TournamentTeams({ slug }: { slug: string }) {
           <div className="tournament-team-title"><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{team.team_name}</h3><small>{team.team_tag ? `[${team.team_tag}] · ` : ""}{team.status === "approved" ? "CONFIRMADO" : "REGISTRO RECIBIDO"}</small></div>{canManage && <button type="button" disabled={deletingTeamId === team.id} onClick={() => deleteTeam(team)}>{deletingTeamId === team.id ? "BORRANDO…" : "ELIMINAR EQUIPO"}</button>}</div>
           <div className="tournament-team-roster">{team.members.map((member) => {
             const status = member.role === "captain" ? "accepted" : member.invitation_status;
-            const statusLabel = member.role === "captain" ? "CAPITÁN · ACEPTÓ" : status === "accepted" ? "JUGADOR · ACEPTÓ" : status === "rejected" ? "INVITACIÓN RECHAZADA" : "INVITACIÓN PENDIENTE";
+            const statusLabel = status === "accepted" ? "invitación aceptada" : status === "rejected" ? "invitación rechazada" : "invitación pendiente";
+            const roleLabel = member.role === "captain" ? "CAPITÁN" : "JUGADOR";
 
-            return <div key={member.id} className={`is-${status}`} aria-label={`${member.minecraft_username}: ${statusLabel.toLowerCase()}`}>
+            return <div key={member.id} className={`is-${status}`} aria-label={`${member.minecraft_username}: ${roleLabel.toLowerCase()}, ${statusLabel}`}>
               {member.minecraft_uuid ? <img src={headUrl(member.minecraft_uuid, 36)} alt={`Cabeza de ${member.minecraft_username}`} width={36} height={36} /> : <i aria-hidden="true">?</i>}
-              <span><strong>{member.minecraft_username}</strong><small><b aria-hidden="true" />{statusLabel}{member.discord_username ? ` · @${member.discord_username}` : ""}</small></span>
+              <span><strong>{member.minecraft_username}</strong><small><b aria-hidden="true" />{roleLabel}{member.discord_username ? ` · @${member.discord_username}` : ""}</small></span>
             </div>;
           })}</div>
         </article>)}
