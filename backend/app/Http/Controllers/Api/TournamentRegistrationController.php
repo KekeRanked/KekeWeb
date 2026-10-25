@@ -42,27 +42,60 @@ class TournamentRegistrationController extends Controller
             return response()->json(['data' => []]);
         }
 
-        $users = User::query()
-            ->whereNotNull('minecraft_uuid')
-            ->whereNotNull('minecraft_username')
-            ->whereNotNull('discord_id')
-            ->where(function ($query) use ($term): void {
-                $query->where('minecraft_username', 'like', "%{$term}%")
-                    ->orWhere('discord_username', 'like', "%{$term}%")
-                    ->orWhere('discord_id', 'like', "%{$term}%")
-                    ->orWhere('minecraft_uuid', 'like', "%{$term}%");
-            })
-            ->orderBy('minecraft_username')
-            ->limit(20)
-            ->get(['id', 'minecraft_uuid', 'minecraft_username', 'discord_id', 'discord_username']);
+        try {
+            $players = RankedPlayer::query()
+                ->where('is_verified', 1)
+                ->whereNotNull('discord_id')
+                ->where('discord_id', '<>', '')
+                ->where(function ($query) use ($term): void {
+                    $query->where('minecraft_username', 'like', "%{$term}%")
+                        ->orWhere('discord_id', 'like', "%{$term}%")
+                        ->orWhere('minecraft_uuid', 'like', "%{$term}%");
+                })
+                ->orderBy('minecraft_username')
+                ->limit(20)
+                ->get(['minecraft_uuid', 'minecraft_username', 'discord_id']);
+        } catch (Throwable $exception) {
+            return response()->json(['message' => 'No se pudo comprobar la base de jugadores verificados.'], 503);
+        }
 
-        return response()->json(['data' => $users->map(function (User $user): array {
+        $users = DB::transaction(function () use ($players) {
+            return $players->map(function (RankedPlayer $player): User {
+                $discordId = (string) $player->discord_id;
+                $uuid = $this->normalizeMinecraftUuid((string) $player->minecraft_uuid);
+
+                User::query()
+                    ->where('minecraft_uuid', $uuid)
+                    ->where(function ($query) use ($discordId): void {
+                        $query->whereNull('discord_id')->orWhere('discord_id', '<>', $discordId);
+                    })
+                    ->update(['minecraft_uuid' => null, 'minecraft_username' => null]);
+
+                $user = User::query()->firstOrNew(['discord_id' => $discordId]);
+                if (! $user->exists) {
+                    $user->name = $player->minecraft_username;
+                }
+                $user->forceFill([
+                    'minecraft_uuid' => $uuid,
+                    'minecraft_username' => $player->minecraft_username,
+                ])->save();
+
+                return $user;
+            });
+        });
+
+        $discordUsernames = User::query()
+            ->whereIn('id', $users->pluck('id'))
+            ->whereNotNull('discord_id')
+            ->pluck('discord_username', 'id');
+
+        return response()->json(['data' => $users->map(function (User $user) use ($discordUsernames): array {
             return [
                 'user_id' => $user->id,
                 'minecraft_uuid' => $user->minecraft_uuid,
                 'minecraft_username' => $user->minecraft_username,
                 'discord_id' => (string) $user->discord_id,
-                'discord_username' => $user->discord_username,
+                'discord_username' => $discordUsernames->get($user->id),
             ];
         })->values()]);
     }

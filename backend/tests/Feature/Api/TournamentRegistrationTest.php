@@ -259,7 +259,7 @@ class TournamentRegistrationTest extends TestCase
         $this->assertDatabaseMissing('tournament_registrations', ['id' => $registration->id]);
     }
 
-    public function test_search_only_returns_users_registered_on_the_web(): void
+    public function test_search_provisions_verified_players_for_web_invitations(): void
     {
         $event = $this->tournament();
         $captain = User::factory()->create();
@@ -280,12 +280,20 @@ class TournamentRegistrationTest extends TestCase
         $this->actingAs($captain)
             ->getJson("/api/events/{$event->slug}/registration-players?q=Search")
             ->assertOk()
-            ->assertJsonCount(1, 'data')
+            ->assertJsonCount(2, 'data')
             ->assertJsonFragment([
                 'minecraft_username' => 'Searchable',
                 'discord_username' => 'searchable.discord',
             ])
-            ->assertJsonMissing(['minecraft_username' => 'SearchPluginOnly']);
+            ->assertJsonFragment([
+                'minecraft_username' => 'SearchPluginOnly',
+                'discord_id' => '100000000000000005',
+            ]);
+
+        $this->assertDatabaseHas('users', [
+            'discord_id' => '100000000000000005',
+            'minecraft_username' => 'SearchPluginOnly',
+        ]);
     }
 
     public function test_invitation_persists_until_member_accepts_it(): void
